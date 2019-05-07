@@ -15,9 +15,9 @@ IEEE/ACM Asia and South Pacific Design Automation Conference (ASPDAC), Tokyo, Ja
 "Dr. CU: Detailed Routing by Sparse Grid Graph and Minimum-Area-Captured Path Search",
 submitted to IEEE Transactions on Computer-Aided Design of Integrated Circuits and Systems (TCAD).
 
-This version of code supports [ISPD'18 benchmarks](http://www.ispd.cc/contests/18/#benchmarks) and is consistent with a recent submission to TCAD. A more updated version with the adaption to [ISPD'19 benchmarks](http://www.ispd.cc/contests/19/#benchmarks) and some further enhancement will be released later.
+(This version of code supports [ISPD'18 benchmarks](http://www.ispd.cc/contests/18/#benchmarks) and is consistent with the TCAD submission.)
 
-## How to Build
+## 1. How to Build
 
 **Step 1:** Download the source code. For example,
 ~~~
@@ -31,24 +31,24 @@ $ ./scripts/build.py -o release
 ~~~
 
 Note that this will generate two folders under the root, `build` and `run` (`build` contains intermediate files for build/compilation, while `run` contains binaries and auxiliary files).
-More details are in `scripts/build.py`.
+More details are in [`scripts/build.py`](scripts/build.py).
 
-### Dependencies
+### 1.1. Dependencies
 
 * [GCC](https://gcc.gnu.org/) (version >= 5.5.0) or other working c++ compliers
 * [CMake](https://cmake.org/) (version >= 2.8)
 * [Boost](https://www.boost.org/) (version >= 1.58)
-* [Rsyn](https://github.com/RsynTeam/rsyn-x) (a trimmed version is used, already added under folder `rsyn`)
 * [Python](https://www.python.org/) (version 3, optional, for utility scripts)
 * [Innovus®](https://www.cadence.com/content/cadence-www/global/en_US/home/tools/digital-design-and-signoff/soc-implementation-and-floorplanning/innovus-implementation-system.html) (version 17.1, optional, for design rule checking and evaluation)
+* [Rsyn](https://github.com/RsynTeam/rsyn-x) (a trimmed version is used, already added under folder `rsyn`)
 
-## How to Run
+## 2. How to Run
 
-### Toy
+### 2.1. Toy Test
 
 #### Run Binary Directly
 
-Go to the `run` directory and run the binary `ispd18dr` with a toy test case `ispd18_sample`:
+Go to the `run` directory and run the binary `ispd18dr` with a toy case `ispd18_sample`:
 ~~~
 $ cd run
 $ ./ispd18dr -lef ../toys/ispd18_sample/ispd18_sample.input.lef -def ../toys/ispd18_sample/ispd18_sample.input.def -guide ../toys/ispd18_sample/ispd18_sample.in
@@ -57,21 +57,23 @@ put.guide -output ispd18_sample.solution.def -threads 8
 
 #### Run with a Wrapping Script
 
-Instead of running the binary directly, you may also use a wrapping script `run_clean.py` to save typing and do more things:
+Instead of running the binary directly, you may also use a wrapping script `run_clean.py` to save typing and do more:
 ~~~
 $ cd run
 $ ./run_clean.py 8s -p ../toys/
 ~~~
+
 If Innovus® has been properly installed in your OS, an evaluation can be launched by
 ~~~
 $ ./run_clean.py 8s -s eval -p ../toys/
 ~~~
-In the end, an evaluation result table will be printed in the terminal.
-Furthermore, the routing result can be visualized by
+In the end, a result table will be printed in the terminal.
+
+Furthermore, the solution can be visualized by
 ~~~
 $ ./run_clean.py 8s -s view -p ../toys/
 ~~~
-It will give something like:
+which gives:
 
 ![ispd18_sample.solution.png](/toys/ispd18_sample/ispd18_sample.solution.png)
 
@@ -79,12 +81,9 @@ The three steps, `route`, `eval` and `view` of `run_clean.py` can also be invoke
 ~~~
 $ ./run_clean.py 8s -s route eval view -p ../toys/
 ~~~
-More usage about `run_clean.py` can be known by
-~~~
-$ ./run_clean.py -h
-~~~
+More usage about `run_clean.py` can be known by the option `-h`.
 
-### Batch Test
+### 2.2. Batch Test
 
 The benchmarks can be downloaded from [the hompage of ISPD'18 Contest ](http://www.ispd.cc/contests/18/#benchmarks).
 You may let `run_clean.py` know the benchmark path by setting OS environmental variable `BENCHMARK_PATH` or specifying it under option `-p`.
@@ -94,7 +93,7 @@ $ cd dr-cu/run
 $ ./run.py <benchmark_name...|all> -s route eval [option...]
 ```
 
-## Modules
+## 3. Modules
 
 * `ispd18eval`: scripts and other files for evaluation, provided by [ISPD'18 Contest](http://www.ispd.cc/contests/18)
 * `rsyn`: code from [Rsyn](https://github.com/RsynTeam/rsyn-x) for file IO
@@ -107,7 +106,7 @@ $ ./run.py <benchmark_name...|all> -s route eval [option...]
 * `toys`: toy test cases
 
 
-## Results
+## 4. Results
 
 Experiments are performed on a 64-bit Linux workstation with Intel Xeon Silver 4114 CPU (2.20GHz, 40 cores) and 256GB memory.
 Consistent with the contest, eight threads are used.
@@ -125,7 +124,9 @@ Consistent with the contest, eight threads are used.
 | **ispd18_test9**  | 54602832 | 2282226 | 284645  | 42078     | 12746 | 0         | 108324 | 162.7      | 28         | 379     | **32592136** | **11.20** | **906**  |
 | **ispd18_test10** | 67907614 | 2439531 | 1137257 | 64535     | 30527 | 0         | 197840 | 11370.4    | 44         | 3910    | **47909940** | **11.95** | **1299** |
 
-## License
+(WL for "wirelength", og for "out-of-guide", ot for "off-track", ww for "wrong-way")
+
+## 5. License
 
 READ THIS LICENSE AGREEMENT CAREFULLY BEFORE USING THIS PRODUCT. BY USING THIS PRODUCT YOU INDICATE YOUR ACCEPTANCE OF THE TERMS OF THE FOLLOWING AGREEMENT. THESE TERMS APPLY TO YOU AND ANY SUBSEQUENT LICENSEE OF THIS PRODUCT.
 
