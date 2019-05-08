@@ -57,39 +57,39 @@ put.guide -output ispd18_sample.solution.def -threads 8
 
 #### Run with a Wrapping Script
 
-Instead of running the binary directly, you may also use a wrapping script `run_clean.py` to save typing and do more:
+Instead of running the binary directly, you may also use a wrapping script `run.py` to save typing and do more:
 ~~~
 $ cd run
-$ ./run_clean.py 8s -p ../toys/
+$ ./run.py 8s -p ../toys/
 ~~~
 
 If Innovus® has been properly installed in your OS, an evaluation can be launched by
 ~~~
-$ ./run_clean.py 8s -s eval -p ../toys/
+$ ./run.py 8s -s eval -p ../toys/
 ~~~
 In the end, a result table will be printed in the terminal.
 
 Furthermore, the solution can be visualized by
 ~~~
-$ ./run_clean.py 8s -s view -p ../toys/
+$ ./run.py 8s -s view -p ../toys/
 ~~~
 which gives:
 
 ![ispd18_sample.solution.png](/toys/ispd18_sample/ispd18_sample.solution.png)
 
-The three steps, `route`, `eval` and `view` of `run_clean.py` can also be invoked in a single line:
+The three steps, `route`, `eval` and `view` of `run.py` can also be invoked in a single line:
 ~~~
-$ ./run_clean.py 8s -s route eval view -p ../toys/
+$ ./run.py 8s -s route eval view -p ../toys/
 ~~~
-More usage about `run_clean.py` can be known by the option `-h`.
+More usage about `run.py` can be known by the option `-h`.
 
 ### 2.2. Batch Test
 
 The benchmarks can be downloaded from [the hompage of ISPD'18 Contest ](http://www.ispd.cc/contests/18/#benchmarks).
-You may let `run_clean.py` know the benchmark path by setting OS environmental variable `BENCHMARK_PATH` or specifying it under option `-p`.
+You may let `run.py` know the benchmark path by setting OS environmental variable `BENCHMARK_PATH` or specifying it under option `-p`.
 Then,
 ```
-$ cd dr-cu/run
+$ cd run
 $ ./run.py <benchmark_name...|all> -s route eval [option...]
 ```
 
