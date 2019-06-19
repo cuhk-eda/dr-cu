@@ -13,8 +13,6 @@ ostream& operator<<(ostream& os, const CrossPoint& cp) {
 }
 
 MetalLayer::MetalLayer(Rsyn::PhysicalLayer rsynLayer, Rsyn::PhysicalTracks rsynTrack, const DBU libDBU) {
-    assert((rsynTrack.getDirection() == Rsyn::TRACK_HORIZONTAL) == (rsynLayer.getDirection() == Rsyn::HORIZONTAL));
-
     // Rsyn::PhysicalLayer (LEF)
     lefiLayer* layer = rsynLayer.getLayer();
     name = layer->name();
