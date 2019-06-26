@@ -13,9 +13,9 @@ More details are in the following papers:
 IEEE/ACM Asia and South Pacific Design Automation Conference (ASPDAC), Tokyo, Japan, Jan 21-24, 2019.
 * Gengjie Chen, Chak-Wa Pui, Haocheng Li and Evangeline F. Y. Young,
 "Dr. CU: Detailed Routing by Sparse Grid Graph and Minimum-Area-Captured Path Search",
-submitted to IEEE Transactions on Computer-Aided Design of Integrated Circuits and Systems (TCAD).
+accepted by IEEE Transactions on Computer-Aided Design of Integrated Circuits and Systems (TCAD).
 
-(This version of code supports [ISPD'18 benchmarks](http://www.ispd.cc/contests/18/#benchmarks) and is consistent with the TCAD submission.)
+(This version of code supports [ISPD'18 benchmarks](http://www.ispd.cc/contests/18/#benchmarks) and is consistent with the TCAD paper.)
 
 ## 1. How to Build
 
