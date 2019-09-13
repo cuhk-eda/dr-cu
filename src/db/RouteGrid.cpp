@@ -10,8 +10,6 @@ void RouteGrid::init() {
     LayerList::init();
     // Fixed metal
     fixedMetals.resize(layers.size());
-    fixedMetalForbidRegions.resize(layers.size());
-    fixedMetalC2CForbidRegions.resize(layers.size());
     // Wire
     routedWireMap.resize(layers.size());
     poorWireMap.resize(layers.size());
@@ -79,6 +77,30 @@ void RouteGrid::init() {
     }
 }
 
+void RouteGrid::clear() {
+    // Fixed metal
+    fixedMetals.clear();
+    // Wire
+    routedWireMap.clear();
+    poorWireMap.clear();
+    histWireMap.clear();
+    wireLocks.clear();
+    // Via
+    routedViaMap.clear();       // the last layer will not be used
+    routedViaMapUpper.clear();  // the first layer will not be used
+    viaLocks.clear();           // the last layer will not be used
+    viaLocksUpper.clear();      // the first layer will not be used
+    histViaMap.clear();         // the last layer will not be used
+    for (auto& layer : poorViaMap) {
+        for (auto& track : layer) {
+            for (auto& intvl : track) {
+                delete intvl.second;
+            }
+        }
+    }
+    poorViaMap.clear();
+}
+
 void RouteGrid::setUnitVioCost(double discount) {
     if (setting.dbVerbose >= +db::VerboseLevelT::MIDDLE) {
         printlog("Set unit vio cost with discount of", discount);
@@ -103,7 +125,8 @@ CostT RouteGrid::getEdgeCost(const GridEdge& edge, const int netIdx) const {
 
 CostT RouteGrid::getEdgeVioCost(const GridEdge& edge, const int netIdx, bool histCost) const {
     if (edge.isVia()) {
-        return getViaVioCost(edge.lowerGridPoint(), netIdx, histCost);
+        auto viaType = getViaType(edge.lowerGridPoint());
+        return getViaVioCost(edge.lowerGridPoint(), netIdx, histCost, viaType);
     } else if (edge.isTrackSegment()) {
         return getWireSegmentVioCost({edge}, netIdx, histCost);
     } else if (edge.isWrongWaySegment()) {
@@ -114,79 +137,69 @@ CostT RouteGrid::getEdgeVioCost(const GridEdge& edge, const int netIdx, bool his
     }
 }
 
-CostT RouteGrid::getViaVioCost(const GridPoint& via, const int netIdx, bool histCost) const {
-    auto usage = getViaUsage(via, netIdx);
+CostT RouteGrid::getViaVioCost(const GridPoint& via, const int netIdx, bool histCost, const ViaType* viaType) const {
+    unsigned vioWithViaWire = getViaUsageOnVias(via, netIdx) + getViaUsageOnWires(via, netIdx);
     auto viaPoorness = getViaPoorness(via, netIdx);
-    double pinSpace = (viaPoorness == ViaPoorness::Poor) ? setting.dbPoorViaPenaltyCoeff : 0;
+    double vioWithObs = (viaPoorness == ViaPoorness::Poor) ? setting.dbPoorViaPenaltyCoeff : 0;
     double nondefault = (viaPoorness == ViaPoorness::Nondefault && histCost) ? setting.dbNondefaultViaPenaltyCoeff : 0;
-    HistUsageT histUsage = histCost ? getViaUsageOnHistVia(via) : 0;
-    return (usage.first + usage.second + histUsage) * unitSpaceVioCostDiscounted +
-           (pinSpace + nondefault) * unitSpaceVioCost;
+    HistUsageT histUsage = histCost ? getViaHistUsage(via) : 0;
+    return (vioWithViaWire + histUsage) * unitSpaceVioCostDiscounted + (vioWithObs + nondefault) * unitSpaceVioCost;
 }
 
-std::pair<unsigned, unsigned> RouteGrid::getViaUsage(const GridPoint& via, const int netIdx) const {
-    unsigned usageOnVias = 0;
-    usageOnVias += getViaUsageOnSameLayerVias(via, netIdx);
-    usageOnVias += getViaUsageOnBotLayerVias(via, netIdx);
-    usageOnVias += getViaUsageOnTopLayerVias(via, netIdx);
-
-    unsigned usageOnWires = getViaUsageOnWires(cutLayers[via.layerIdx].viaBotWire, via, netIdx);
-    if (usageOnWires) {
-        return {usageOnVias, usageOnWires};
-    }
-
-    return {usageOnVias, getViaUsageOnWires(cutLayers[via.layerIdx].viaTopWire, getUpper(via), netIdx)};
+unsigned RouteGrid::getViaUsageOnWires(const GridPoint& via, const int netIdx, const ViaType* viaType) const {
+    unsigned usageOnWires = getViaUsageOnBotWires(via, netIdx, viaType);
+    return usageOnWires ? usageOnWires : getViaUsageOnTopWires(via, netIdx, viaType);
 }
 
-unsigned RouteGrid::getViaUsageOnWires(const vector<GridPoint>& gps, const int netIdx) const {
-    const int low = gps.front().crossPointIdx;
-    const int high = gps.back().crossPointIdx;
-    const vector<int>& crossPointUsage =
-        getShortWireSegmentUsageOnOvlpWire({gps[0].layerIdx, gps[0].trackIdx, {low, high}}, netIdx);
-    for (int usage : crossPointUsage) {
-        if (usage) return usage;
-    }
-    return 0;
+unsigned RouteGrid::getViaUsageOnWiresPost(const GridPoint& via, const int netIdx, const ViaType* viaType) const {
+    return getViaUsageOnBotWires(via, netIdx, viaType) + getViaUsageOnTopWires(via, netIdx, viaType);
 }
 
-unsigned RouteGrid::getViaUsageOnWires(const vector<vector<vector<bool>>>& viaWire,
-                                       const GridPoint& gp,
-                                       const int netIdx) const {
-    int xSize = ((int)viaWire[gp.crossPointIdx].size() - 1) / 2;
-    int ySize = ((int)viaWire[gp.crossPointIdx][0].size() - 1) / 2;
+unsigned RouteGrid::getViaUsageOnBotWires(const GridPoint& via, const int netIdx, const ViaType* viaType) const {
+    if (!viaType) viaType = &cutLayers[via.layerIdx].defaultViaType();
+    return getViaUsageOnWiresHelper(via, netIdx, viaType->viaBotWire[via.crossPointIdx]);
+}
+
+unsigned RouteGrid::getViaUsageOnTopWires(const GridPoint& via, const int netIdx, const ViaType* viaType) const {
+    if (!viaType) viaType = &cutLayers[via.layerIdx].defaultViaType();
+    auto upper = getUpper(via);
+    return getViaUsageOnWiresHelper(upper, netIdx, viaType->viaTopWire[upper.crossPointIdx]);
+}
+
+unsigned RouteGrid::getViaUsageOnWiresHelper(const GridPoint& gp,
+                                             const int netIdx,
+                                             const vector<vector<bool>>& viaWire) const {
+    int xSize = viaWire.size() / 2;
+    int ySize = viaWire[0].size() / 2;
+    unsigned usageOnWires = 0;
     for (unsigned i = max(0, gp.trackIdx - xSize); i < min(layers[gp.layerIdx].numTracks(), gp.trackIdx + xSize + 1);
          ++i) {
         vector<GridPoint> gps;
         for (unsigned j = max(0, gp.crossPointIdx - ySize);
              j < min(layers[gp.layerIdx].numCrossPoints(), gp.crossPointIdx + ySize + 1);
              ++j) {
-            if (viaWire[gp.crossPointIdx][i + xSize - gp.trackIdx][j + ySize - gp.crossPointIdx]) {
+            if (viaWire[i + xSize - gp.trackIdx][j + ySize - gp.crossPointIdx]) {
                 gps.emplace_back(gp.layerIdx, i, j);
             }
         }
         if (gps.empty()) {
             continue;
         }
-        unsigned usageOnWires = getViaUsageOnWires(gps, netIdx);
-        if (usageOnWires) {
-            return usageOnWires;
+        const int low = gps.front().crossPointIdx;
+        const int high = gps.back().crossPointIdx;
+        const vector<int>& crossPointUsage =
+            getShortWireSegmentUsageOnOvlpWire({gps[0].layerIdx, gps[0].trackIdx, {low, high}}, netIdx);
+        for (int usage : crossPointUsage) {
+            if (usage) {
+                ++usageOnWires;  // count # tracks violated
+                break;
+            }
         }
     }
-    return 0;
+    return usageOnWires;
 }
 
-unsigned RouteGrid::getViaUsageOnVia(const GridPoint& via, const int netIdx) const {
-    unsigned usage = 0;
-    auto itRange = routedViaMap[via.layerIdx][via.trackIdx].equal_range(via.crossPointIdx);
-    for (auto it = itRange.first; it != itRange.second; ++it) {
-        if (it->second != netIdx) {
-            ++usage;
-        }
-    }
-    return usage;
-}
-
-HistUsageT RouteGrid::getViaUsageOnHistVia(const GridPoint& via) const {
+HistUsageT RouteGrid::getViaHistUsage(const GridPoint& via) const {
     auto it = histViaMap[via.layerIdx][via.trackIdx].find(via.crossPointIdx);
     if (it == histViaMap[via.layerIdx][via.trackIdx].end()) {
         return 0.0;
@@ -195,64 +208,101 @@ HistUsageT RouteGrid::getViaUsageOnHistVia(const GridPoint& via) const {
     }
 }
 
-unsigned RouteGrid::getViaUsageOnSameLayerVias(const GridPoint& via, const int netIdx) const {
+const ViaType* RouteGrid::getViaType(const GridPoint& via) const {
+    auto it = routedNonDefViaMap.find(via);
+    return (it != routedNonDefViaMap.end()) ? it->second : &cutLayers[via.layerIdx].defaultViaType();
+}
+
+unsigned RouteGrid::getViaUsageOnVias(const GridPoint& via, const int netIdx, const ViaType* viaType) const {
+    return getViaUsageOnSameLayerVias(via, netIdx, viaType) + getViaUsageOnBotLayerVias(via, netIdx, viaType) +
+           getViaUsageOnTopLayerVias(via, netIdx, viaType);
+}
+
+unsigned RouteGrid::getViaUsageOnSameLayerVias(const GridPoint& via, const int netIdx, const ViaType* viaType) const {
+    if (!viaType) viaType = &cutLayers[via.layerIdx].defaultViaType();
     unsigned usageOnVias = 0;
     const GridPoint& upper = getUpper(via);
-    int xSize = (int)cutLayers[via.layerIdx].viaMetal.size() - 1;
-    int ySize = (int)cutLayers[via.layerIdx].viaMetal[0].size() - 1;
+    vector<GridPoint> viaVios;
+    int xSize = viaType->mergedAllViaMetal.size() / 2;
+    int ySize = viaType->mergedAllViaMetal[0].size() / 2;
     for (int i = max(0, via.trackIdx - xSize); i < min(layers[via.layerIdx].numTracks(), via.trackIdx + xSize + 1);
          ++i) {
-        for (int j = max(0, upper.trackIdx - ySize);
-             j < min(layers[upper.layerIdx].numTracks(), upper.trackIdx + ySize + 1);
-             ++j) {
-            if (cutLayers[via.layerIdx].viaMetal[abs(i - via.trackIdx)][abs(j - upper.trackIdx)]) {
-                usageOnVias += getViaUsageOnVia({via.layerIdx, i, layers[upper.layerIdx].tracks[j].lowerCPIdx}, netIdx);
+        int firstCP = layers[upper.layerIdx].tracks[max(0, upper.trackIdx - ySize)].lowerCPIdx;
+        int lastCP = layers[upper.layerIdx]
+                         .tracks[min(layers[upper.layerIdx].numTracks() - 1, upper.trackIdx + ySize)]
+                         .lowerCPIdx;
+        auto itBegin = routedViaMap[via.layerIdx][i].lower_bound(firstCP);
+        auto itEnd = routedViaMap[via.layerIdx][i].upper_bound(lastCP);
+        for (auto it = itBegin; it != itEnd; ++it) {
+            if (it->second == netIdx) continue;
+            const GridPoint viaVio(via.layerIdx, i, it->first);
+            const GridPoint upperVio = getUpper(viaVio);
+            const auto& LUT = viaType->allViaMetalNum[getViaType(viaVio)->idx];
+            int xSizeVio = LUT.size() / 2;
+            int ySizeVio = LUT[0].size() / 2;
+            int offsetX = viaVio.trackIdx - via.trackIdx;
+            int offsetY = upperVio.trackIdx - upper.trackIdx;
+            if (abs(offsetX) <= xSizeVio && abs(offsetY) <= ySizeVio && LUT[offsetX + xSizeVio][offsetY + ySizeVio]) {
+                usageOnVias += LUT[offsetX + xSizeVio][offsetY + ySizeVio];
             }
         }
     }
     return usageOnVias;
 }
 
-unsigned RouteGrid::getViaUsageOnBotLayerVias(const GridPoint& via, const int netIdx) const {
-    unsigned usageOnVias = 0;
-    const int viaCrossPointIdx = via.crossPointIdx;
-    if (via.layerIdx) {
-        int xSize = ((int)cutLayers[via.layerIdx].viaBotVia[viaCrossPointIdx].size() - 1) / 2;
-        int ySize = ((int)cutLayers[via.layerIdx].viaBotVia[viaCrossPointIdx][0].size() - 1) / 2;
-        for (unsigned i = max(0, via.trackIdx - xSize);
-             i < min(layers[via.layerIdx].numTracks(), via.trackIdx + xSize + 1);
-             ++i) {
-            for (unsigned j = max(0, viaCrossPointIdx - ySize);
-                 j < min(layers[via.layerIdx].numCrossPoints(), viaCrossPointIdx + ySize + 1);
-                 ++j) {
-                int lowerTrackIdx = layers[via.layerIdx].crossPoints[j].lowerTrackIdx;
-                if (lowerTrackIdx >= 0 && cutLayers[via.layerIdx].viaBotVia[viaCrossPointIdx][i + xSize - via.trackIdx]
-                                                                           [j + ySize - viaCrossPointIdx]) {
-                    usageOnVias += getViaUsageOnVia(
-                        {via.layerIdx - 1, lowerTrackIdx, layers[via.layerIdx].tracks[i].lowerCPIdx}, netIdx);
-                }
-            }
-        }
-    }
-    return usageOnVias;
+unsigned RouteGrid::getViaUsageOnBotLayerVias(const GridPoint& via, const int netIdx, const ViaType* viaType) const {
+    if (!viaType) viaType = &cutLayers[via.layerIdx].defaultViaType();
+    return via.layerIdx ? getViaUsageOnDiffLayerViasHelper(via,
+                                                           netIdx,
+                                                           viaType->mergedAllViaBotVia[via.crossPointIdx],
+                                                           viaType->allViaBotVia,
+                                                           routedViaMapUpper,
+                                                           true)
+                        : 0;
 }
 
-unsigned RouteGrid::getViaUsageOnTopLayerVias(const GridPoint& via, const int netIdx) const {
+unsigned RouteGrid::getViaUsageOnTopLayerVias(const GridPoint& via, const int netIdx, const ViaType* viaType) const {
+    if (!viaType) viaType = &cutLayers[via.layerIdx].defaultViaType();
+    auto upper = getUpper(via);
+    return (via.layerIdx + 2 < layers.size())
+               ? getViaUsageOnDiffLayerViasHelper(upper,
+                                                  netIdx,
+                                                  viaType->mergedAllViaTopVia[upper.crossPointIdx],
+                                                  viaType->allViaTopVia,
+                                                  routedViaMap,
+                                                  false)
+               : 0;
+}
+
+unsigned RouteGrid::getViaUsageOnDiffLayerViasHelper(const GridPoint& via,
+                                                     const int netIdx,
+                                                     const vector<vector<bool>>& mergedAllViaVia,
+                                                     const vector<vector<vector<vector<bool>>>>& allViaVia,
+                                                     const ViaMapT& viaMap,
+                                                     bool viaBotVia) const {
+    // Note: via and viaVio are defined by their grid points in the middle layer in this function
     unsigned usageOnVias = 0;
-    const GridPoint& upper = getUpper(via);
-    if (upper.layerIdx + 1 < layers.size()) {
-        int xSize = ((int)cutLayers[via.layerIdx].viaTopVia[upper.crossPointIdx].size() - 1) / 2;
-        int ySize = ((int)cutLayers[via.layerIdx].viaTopVia[upper.crossPointIdx][0].size() - 1) / 2;
-        for (unsigned i = max(0, upper.trackIdx - xSize);
-             i < min(layers[upper.layerIdx].numTracks(), upper.trackIdx + xSize + 1);
-             ++i) {
-            for (unsigned j = max(0, upper.crossPointIdx - ySize);
-                 j < min(layers[upper.layerIdx].numCrossPoints(), upper.crossPointIdx + ySize + 1);
-                 ++j) {
-                if (layers[upper.layerIdx].crossPoints[j].upperTrackIdx >= 0 &&
-                    cutLayers[via.layerIdx]
-                        .viaTopVia[upper.crossPointIdx][i + xSize - upper.trackIdx][j + ySize - upper.crossPointIdx]) {
-                    usageOnVias += getViaUsageOnVia({upper.layerIdx, (int)i, (int)j}, netIdx);
+    int xSize = mergedAllViaVia.size() / 2;
+    int ySize = mergedAllViaVia[0].size() / 2;
+    for (unsigned i = max(0, via.trackIdx - xSize); i < min(layers[via.layerIdx].numTracks(), via.trackIdx + xSize + 1);
+         ++i) {
+        auto itBegin = viaMap[via.layerIdx][i].lower_bound(max(0, via.crossPointIdx - ySize));
+        auto itEnd = viaMap[via.layerIdx][i].upper_bound(
+            min(layers[via.layerIdx].numCrossPoints() - 1, via.crossPointIdx + ySize));
+        for (auto it = itBegin; it != itEnd; ++it) {
+            if (it->second == netIdx) continue;
+            int neighCP = it->first;
+            if (mergedAllViaVia[i - via.trackIdx + xSize][neighCP - via.crossPointIdx + ySize]) {
+                GridPoint viaVio(via.layerIdx, i, neighCP);
+                GridPoint viaVioLower = viaBotVia ? getLower(viaVio) : viaVio;
+                const auto& LUT = allViaVia[getViaType(viaVioLower)->idx][via.crossPointIdx];
+                int xSizeVio = LUT.size() / 2;
+                int ySizeVio = LUT[0].size() / 2;
+                int offsetX = viaVio.trackIdx - via.trackIdx;
+                int offsetY = viaVio.crossPointIdx - via.crossPointIdx;
+                if (abs(offsetX) <= xSizeVio && abs(offsetY) <= ySizeVio &&
+                    LUT[offsetX + xSizeVio][offsetY + ySizeVio]) {
+                    usageOnVias += 1;
                 }
             }
         }
@@ -270,11 +320,11 @@ RouteGrid::ViaPoorness RouteGrid::getViaPoorness(const GridPoint& via, int netId
         }
     } else {
         const auto& cutLayer = getCutLayer(via.layerIdx);
-        if (getViaSpaceVio(via, cutLayer.defaultViaType(), netIdx) == 0) {
+        if (getViaFixedVio(via, cutLayer.defaultViaType(), netIdx) == 0) {
             return ViaPoorness::Good;
         }
         for (const auto& viaType : cutLayer.allViaTypes) {
-            if (getViaSpaceVio(via, viaType, netIdx) == 0) {
+            if (getViaFixedVio(via, viaType, netIdx) == 0) {
                 return ViaPoorness::Nondefault;
             }
         }
@@ -282,7 +332,7 @@ RouteGrid::ViaPoorness RouteGrid::getViaPoorness(const GridPoint& via, int netId
     }
 }
 
-void RouteGrid::initPoorViaMap() {
+void RouteGrid::initPoorViaMap(vector<std::pair<BoxOnLayer, int>>& fixedMetalVec) {
     PoorViaMapBuilder builder(poorViaMap, usePoorViaMap, *this);
     builder.run(fixedMetalVec);
 }
@@ -298,59 +348,94 @@ ViaData* RouteGrid::getViaData(const GridPoint& via) const {
     return intvls[idx].second;
 }
 
-int RouteGrid::getViaSpaceVio(const db::GridPoint& via, const db::ViaType& viaType, int netIdx) const {
-    int numOvlp = 0;
-    const auto& cutLayer = getCutLayer(via.layerIdx);
+int RouteGrid::getViaFixedVio(const db::GridPoint& via, const db::ViaType& viaType, int netIdx) const {
     auto viaLoc = getLoc(via);
-    auto updateSpaceVio = [&](const vector<utils::BoxT<DBU>>& forbidRegions,
-                              const vector<std::pair<utils::BoxT<DBU>, int>>& neighMetals) {
-        for (auto forbidRegion : forbidRegions) {
-            forbidRegion.ShiftBy(viaLoc);
-            for (const auto& neighMetal : neighMetals) {
-                auto ovlp = forbidRegion.IntersectWith(neighMetal.first);
-                if (ovlp.IsValid()) {
-                    numOvlp += (ovlp.area() > 0);
-                }
-            }
-        }
-    };
-    auto updateC2CSpaceVio = [&](const vector<utils::BoxT<DBU>>& forbidRegions,
-                                 const vector<std::pair<utils::BoxT<DBU>, int>>& neighMetals,
-                                 int layerIdx) {
-        for (auto forbidRegion : forbidRegions) {
-            forbidRegion.ShiftBy(viaLoc);
-            for (const auto& neighMetal : neighMetals) {
-                DBU space = layers[layerIdx].getSpace(neighMetal.first);
-                numOvlp += (utils::L2Dist(forbidRegion, neighMetal.first) < space);
-            }
-        }
-    };
+    return getViaFixedVio(viaLoc, via.layerIdx, viaType, netIdx);
+}
 
-    // to neighbors
-    auto botMaxForbidRegion = cutLayer.botMaxForbidRegion;
-    botMaxForbidRegion.ShiftBy(viaLoc);
-    auto topMaxForbidRegion = cutLayer.topMaxForbidRegion;
-    topMaxForbidRegion.ShiftBy(viaLoc);
-    auto botNeighMetals = getOvlpFixedMetals({via.layerIdx, botMaxForbidRegion}, netIdx);
-    auto topNeighMetals = getOvlpFixedMetals({via.layerIdx + 1, topMaxForbidRegion}, netIdx);
-    updateSpaceVio(viaType.botForbidRegions, botNeighMetals);
-    updateSpaceVio(viaType.topForbidRegions, topNeighMetals);
-    // from neighbors
-    auto viaBot = viaType.bot, viaTop = viaType.top;
+int RouteGrid::getViaFixedVio(const utils::PointT<DBU>& viaLoc,
+                              int viaLayerIdx,
+                              const db::ViaType& viaType,
+                              int netIdx) const {
+    int numOvlp = 0;
+    auto viaBot = viaType.bot;
     viaBot.ShiftBy(viaLoc);
+    numOvlp += getFixedMetalVio({viaLayerIdx, viaBot}, netIdx);
+    auto viaTop = viaType.top;
     viaTop.ShiftBy(viaLoc);
-    auto botNeighForbidRegions = getOvlpFixedMetalForbidRegions({via.layerIdx, viaBot}, netIdx);
-    auto topNeighForbidRegions = getOvlpFixedMetalForbidRegions({via.layerIdx + 1, viaTop}, netIdx);
-    updateSpaceVio({viaType.bot}, botNeighForbidRegions);
-    updateSpaceVio({viaType.top}, topNeighForbidRegions);
-    // corner to corner spacing
-    auto botNeighC2CMetals = getOvlpC2CMetals({via.layerIdx, viaBot}, netIdx);
-    auto topNeighC2CMetals = getOvlpC2CMetals({via.layerIdx + 1, viaTop}, netIdx);
-    updateC2CSpaceVio({viaType.bot}, botNeighC2CMetals, via.layerIdx);
-    updateC2CSpaceVio({viaType.top}, topNeighC2CMetals, via.layerIdx + 1);
+    numOvlp += getFixedMetalVio({viaLayerIdx + 1, viaTop}, netIdx);
 
     return numOvlp;
-}  // namespace db
+}
+
+int RouteGrid::getFixedMetalVio(const BoxOnLayer& box, int netIdx) const {
+    auto regions = getAccurateMetalRectForbidRegions(box);
+    utils::BoxT<DBU> queryBox = box;
+    queryBox.x.low -= layers[box.layerIdx].fixedMetalQueryMargin;
+    queryBox.x.high += layers[box.layerIdx].fixedMetalQueryMargin;
+    queryBox.y.low -= layers[box.layerIdx].fixedMetalQueryMargin;
+    queryBox.y.high += layers[box.layerIdx].fixedMetalQueryMargin;
+
+    for (const auto& region : regions) {
+        queryBox = queryBox.UnionWith(region);
+    }
+
+    boostBox rtreeQueryBox(boostPoint(queryBox.x.low, queryBox.y.low), boostPoint(queryBox.x.high, queryBox.y.high));
+    vector<std::pair<boostBox, int>> queryResults;
+    fixedMetals[box.layerIdx].query(bgi::intersects(rtreeQueryBox), std::back_inserter(queryResults));
+    vector<std::pair<utils::BoxT<DBU>, int>> neighMetals;
+    for (const auto& queryResult : queryResults) {
+        if (queryResult.second != netIdx) {
+            const auto& b = queryResult.first;
+            neighMetals.emplace_back(utils::BoxT<DBU>(bg::get<bg::min_corner, 0>(b),
+                                                      bg::get<bg::min_corner, 1>(b),
+                                                      bg::get<bg::max_corner, 0>(b),
+                                                      bg::get<bg::max_corner, 1>(b)),
+                                     queryResult.second);
+        }
+    }
+
+    int numOvlp = 0;
+    for (const auto& neighMetal : neighMetals) {
+        // getOvlpFixedMetals
+        for (auto forbidRegion : regions) {
+            auto ovlp = forbidRegion.IntersectWith(neighMetal.first);
+            if (ovlp.IsValid()) {
+                numOvlp += (ovlp.area() > 0);
+            }
+        }
+
+        // getOvlpFixedMetalForbidRegions
+        auto forbidRegions = getAccurateMetalRectForbidRegions({box.layerIdx, neighMetal.first});
+        for (auto forbidRegion : forbidRegions) {
+            auto ovlp = forbidRegion.IntersectWith(box);
+            if (ovlp.IsValid()) {
+                numOvlp += (ovlp.area() > 0);
+            }
+        }
+
+        // getOvlpC2CMetals
+        if (!layers[box.layerIdx].isEolDominated(neighMetal.first)) {
+            DBU space = layers[box.layerIdx].getParaRunSpace(neighMetal.first);
+            numOvlp += (utils::L2Dist(box, neighMetal.first) < space);
+        }
+    }
+    return numOvlp;
+}
+
+const ViaType& RouteGrid::getBestViaTypeForFixed(const utils::PointT<DBU>& viaLoc, int viaLayerIdx, int netIdx) const {
+    const auto& cutLayer = getCutLayer(viaLayerIdx);
+    auto bestViaType = &cutLayer.defaultViaType();
+    int minVio = getViaFixedVio(viaLoc, viaLayerIdx, cutLayer.defaultViaType(), netIdx);
+    for (auto& viaType : cutLayer.allViaTypes) {
+        int vio = getViaFixedVio(viaLoc, viaLayerIdx, viaType, netIdx);
+        if (vio < minVio) {
+            vio = minVio;
+            bestViaType = &viaType;
+        }
+    }
+    return *bestViaType;
+}
 
 CostT RouteGrid::getWireSegmentCost(const TrackSegment& ts, const int netIdx) const {
     DBU dist = layers[ts.layerIdx].getCrossPointRangeDistCost(ts.crossPointRange);
@@ -376,7 +461,7 @@ CostT RouteGrid::getWireSegmentVioCost(const TrackSegment& ts, const int netIdx,
     cost += (unitSpaceVioCostDiscounted * getWireSegmentUsageOnVias(ts, netIdx).size());
     // 4. Hist cost
     if (histCost) {
-        iterateHistWireSegments(ts, [&](const utils::IntervalT<int>& intvl, HistUsageT discountedUsage) {
+        iterateHistWireSegments(ts, netIdx, [&](const utils::IntervalT<int>& intvl, HistUsageT discountedUsage) {
             DBU dist = layers[ts.layerIdx].getCrossPointRangeDistCost(intvl);
             cost += unitShortVioCostDiscounted[ts.layerIdx] * discountedUsage * dist;
         });
@@ -428,7 +513,7 @@ vector<CostT> RouteGrid::getShortWireSegmentVioCost(const TrackSegment& ts, int 
     }
     // 3. Hist cost
     if (histCost) {
-        const vector<HistUsageT>& histWire = getShortWireSegmentUsageOnOvlpHistWire(ts);
+        const vector<HistUsageT>& histWire = getShortWireSegmentUsageOnOvlpHistWire(ts, netIdx);
         for (int cpIdx = cps.low; cpIdx <= cps.high; cpIdx++) {
             DBU dist = layers[ts.layerIdx].getCrossPointRangeDistCost({cpIdx, cpIdx});
             crossPointCost[cpIdx - cps.low] +=
@@ -488,9 +573,9 @@ vector<int> RouteGrid::getShortWireSegmentUsageOnOvlpPoorWire(const TrackSegment
     return crossPointUsage;
 }
 
-vector<HistUsageT> RouteGrid::getShortWireSegmentUsageOnOvlpHistWire(const TrackSegment& ts) const {
+vector<HistUsageT> RouteGrid::getShortWireSegmentUsageOnOvlpHistWire(const TrackSegment& ts, int netIdx) const {
     vector<HistUsageT> crossPointUsage(ts.crossPointRange.range() + 1, 0);
-    iterateHistWireSegments(ts, [&](const utils::IntervalT<int>& intvl, HistUsageT discountedUsage) {
+    iterateHistWireSegments(ts, netIdx, [&](const utils::IntervalT<int>& intvl, HistUsageT discountedUsage) {
         for (int cpIdx = intvl.low; cpIdx <= intvl.high; cpIdx++) {
             crossPointUsage[cpIdx - ts.crossPointRange.low] += discountedUsage;
         }
@@ -529,12 +614,16 @@ void RouteGrid::iteratePoorWireSegments(const TrackSegment& ts,
 }
 
 void RouteGrid::iterateHistWireSegments(
-    const TrackSegment& ts, const std::function<void(const utils::IntervalT<int>&, HistUsageT)>& handle) const {
+    const TrackSegment& ts,
+    int netIdx,
+    const std::function<void(const utils::IntervalT<int>&, HistUsageT)>& handle) const {
     auto queryInterval = boost::icl::interval<int>::closed(ts.crossPointRange.low, ts.crossPointRange.high);
     auto intervals = histWireMap[ts.layerIdx][ts.trackIdx].equal_range(queryInterval);
     for (auto it = intervals.first; it != intervals.second; ++it) {
         auto mergedInterval = it->first & queryInterval;
-        handle({first(mergedInterval), last(mergedInterval)}, it->second);
+        if (netIdx != it->second.netIdx) {
+            handle({first(mergedInterval), last(mergedInterval)}, it->second.usage);
+        }
     }
 }
 
@@ -595,17 +684,11 @@ vector<int> RouteGrid::getWireSegmentUsageOnVias(const TrackSegment& ts, int net
     vector<int> viaCPs;
     if ((ts.layerIdx + 1) != layers.size()) {
         // top vias
-        getWireSegmentUsageOnVias(
-            ts, netIdx, layers[ts.layerIdx].wireTopVia, cutLayers[ts.layerIdx].viaBotWire, routedViaMap, viaCPs);
+        getWireSegmentUsageOnVias(ts, netIdx, layers[ts.layerIdx].mergedWireTopVia, routedViaMap, false, viaCPs);
     }
     if (ts.layerIdx != 0) {
         // bot vias
-        getWireSegmentUsageOnVias(ts,
-                                  netIdx,
-                                  layers[ts.layerIdx].wireBotVia,
-                                  cutLayers[ts.layerIdx - 1].viaTopWire,
-                                  routedViaMapUpper,
-                                  viaCPs);
+        getWireSegmentUsageOnVias(ts, netIdx, layers[ts.layerIdx].mergedWireBotVia, routedViaMapUpper, true, viaCPs);
     }
     return viaCPs;
 }
@@ -613,34 +696,34 @@ vector<int> RouteGrid::getWireSegmentUsageOnVias(const TrackSegment& ts, int net
 void RouteGrid::getWireSegmentUsageOnVias(const TrackSegment& ts,
                                           int netIdx,
                                           const vector<vector<vector<bool>>>& wireVia,
-                                          const vector<vector<vector<bool>>>& viaWire,
-                                          const ViaMapT& netsOnVias,
+                                          const ViaMapT& viaMap,
+                                          bool wireBotVia,
                                           vector<int>& viaCPs) const {
     int layerIdx = ts.layerIdx;
     const MetalLayer& layer = layers[layerIdx];
-    const int xSize =
-        ((int)max(wireVia[ts.crossPointRange.low].size(), wireVia[ts.crossPointRange.high].size()) - 1) / 2;
-    const int ySize =
-        ((int)max(wireVia[ts.crossPointRange.low][0].size(), wireVia[ts.crossPointRange.high][0].size()) - 1) / 2;
-
-    std::pair<std::multimap<int, int>::const_iterator, std::multimap<int, int>::const_iterator> itRange;
+    const int xSize = wireVia[0].size() / 2;
+    const int ySize = max(wireVia[ts.crossPointRange.low][0].size(), wireVia[ts.crossPointRange.high][0].size()) / 2;
 
     for (unsigned i = max(0, ts.trackIdx - xSize); i < min(layer.numTracks(), ts.trackIdx + xSize + 1); ++i) {
-        itRange.first = netsOnVias[layerIdx][i].lower_bound(max(0, ts.crossPointRange.low - ySize));
-        itRange.second =
-            netsOnVias[layerIdx][i].upper_bound(min(layer.numCrossPoints() - 1, ts.crossPointRange.high + ySize));
+        auto itBegin = viaMap[layerIdx][i].lower_bound(ts.crossPointRange.low - ySize);
+        auto itEnd = viaMap[layerIdx][i].upper_bound(ts.crossPointRange.high + ySize);
 
-        for (std::multimap<int, int>::const_iterator it = itRange.first; it != itRange.second; ++it) {
-            if (it->second != netIdx) {
-                int viaCP = it->first;
-                int viaWireXSize = (viaWire[viaCP].size() - 1) / 2;
-                int viaWireYSize = (viaWire[viaCP][0].size() - 1) / 2;
-                for (unsigned j = max(ts.crossPointRange.low, viaCP - viaWireYSize);
-                     j < min(ts.crossPointRange.high, viaCP + viaWireYSize + 1);
-                     ++j) {
-                    if (viaWire[viaCP][ts.trackIdx + viaWireXSize - i][j + viaWireYSize - viaCP]) {
-                        viaCPs.push_back(j);
-                    }
+        for (auto it = itBegin; it != itEnd; ++it) {
+            if (it->second == netIdx) continue;
+            const int viaCP = it->first;
+            GridPoint via(ts.layerIdx, i, viaCP);
+            const auto& viaWire =
+                wireBotVia ? getViaType(getLower(via))->viaTopWire[viaCP] : getViaType(via)->viaBotWire[viaCP];
+            const int viaWireXSize = viaWire.size() / 2;
+            const int viaWireYSize = viaWire[0].size() / 2;
+            const int offsetX = ts.trackIdx - via.trackIdx;
+            if (abs(offsetX) > viaWireXSize) continue;
+            for (unsigned j = max(ts.crossPointRange.low, viaCP - viaWireYSize);
+                 j <= min(ts.crossPointRange.high, viaCP + viaWireYSize);
+                 ++j) {
+                const int offsetY = j - via.crossPointIdx;
+                if (abs(offsetY) <= viaWireYSize && viaWire[offsetX + viaWireXSize][offsetY + viaWireYSize]) {
+                    viaCPs.push_back(j);
                 }
             }
         }
@@ -648,14 +731,14 @@ void RouteGrid::getWireSegmentUsageOnVias(const TrackSegment& ts,
 }
 
 vector<std::pair<utils::BoxT<DBU>, int>> RouteGrid::getOvlpBoxes(const BoxOnLayer& box,
-                                                                 int netIdx,
+                                                                 int idx,
                                                                  const RTrees& rtrees) const {
     boostBox queryBox(boostPoint(box.x.low, box.y.low), boostPoint(box.x.high, box.y.high));
     vector<std::pair<boostBox, int>> queryResults;
     rtrees[box.layerIdx].query(bgi::intersects(queryBox), std::back_inserter(queryResults));
     vector<std::pair<utils::BoxT<DBU>, int>> results;
     for (const auto& queryResult : queryResults) {
-        if (queryResult.second != netIdx) {
+        if (queryResult.second != idx) {
             const auto& b = queryResult.first;
             results.emplace_back(utils::BoxT<DBU>(bg::get<bg::min_corner, 0>(b),
                                                   bg::get<bg::min_corner, 1>(b),
@@ -667,78 +750,8 @@ vector<std::pair<utils::BoxT<DBU>, int>> RouteGrid::getOvlpBoxes(const BoxOnLaye
     return results;
 }
 
-vector<std::pair<utils::BoxT<DBU>, int>> RouteGrid::getOvlpBoxes(const BoxOnLayer& box, const RTrees& rtrees) const {
-    boostBox queryBox(boostPoint(box.x.low, box.y.low), boostPoint(box.x.high, box.y.high));
-    vector<std::pair<boostBox, int>> queryResults;
-    rtrees[box.layerIdx].query(bgi::intersects(queryBox), std::back_inserter(queryResults));
-    vector<std::pair<utils::BoxT<DBU>, int>> results;
-    for (const auto& queryResult : queryResults) {
-        const auto& b = queryResult.first;
-        results.emplace_back(utils::BoxT<DBU>(bg::get<bg::min_corner, 0>(b),
-                                              bg::get<bg::min_corner, 1>(b),
-                                              bg::get<bg::max_corner, 0>(b),
-                                              bg::get<bg::max_corner, 1>(b)),
-                             queryResult.second);
-    }
-    return results;
-}
-
 vector<std::pair<utils::BoxT<DBU>, int>> RouteGrid::getOvlpFixedMetals(const BoxOnLayer& box, int netIdx) const {
     return getOvlpBoxes(box, netIdx, fixedMetals);
-}
-
-vector<std::pair<utils::BoxT<DBU>, int>> RouteGrid::getOvlpFixedMetals(const BoxOnLayer& box) const {
-    return getOvlpBoxes(box, fixedMetals);
-}
-
-vector<std::pair<utils::BoxT<DBU>, int>> RouteGrid::getOvlpFixedMetalForbidRegions(const BoxOnLayer& box,
-                                                                                   int netIdx) const {
-    return getOvlpBoxes(box, netIdx, fixedMetalForbidRegions);
-}
-
-vector<std::pair<utils::BoxT<DBU>, int>> RouteGrid::getOvlpFixedMetalForbidRegions(const BoxOnLayer& box) const {
-    return getOvlpBoxes(box, fixedMetalForbidRegions);
-}
-
-vector<std::pair<utils::BoxT<DBU>, int>> RouteGrid::getOvlpC2CMetals(const BoxOnLayer& box, int netIdx) const {
-    auto indices = getOvlpBoxes(box, fixedMetalC2CForbidRegions);
-    vector<std::pair<utils::BoxT<DBU>, int>> results;
-    for (const auto& pair : indices) {
-        int index = pair.second;
-        if (fixedMetalVec[index].second != netIdx)
-            results.emplace_back(fixedMetalVec[index].first, fixedMetalVec[index].second);
-    }
-    return results;
-}
-
-vector<std::pair<utils::BoxT<DBU>, int>> RouteGrid::getOvlpC2CMetals(const BoxOnLayer& box) const {
-    auto indices = getOvlpBoxes(box, fixedMetalC2CForbidRegions);
-    vector<std::pair<utils::BoxT<DBU>, int>> results;
-    for (const auto& pair : indices) {
-        int index = pair.second;
-        results.emplace_back(fixedMetalVec[index].first, fixedMetalVec[index].second);
-    }
-    return results;
-}
-
-DBU RouteGrid::getOvlpArea(const BoxOnLayer& box, int netIdx, const RTrees& rtrees) const {
-    DBU area = 0;
-    auto regions = getOvlpBoxes(box, netIdx, rtrees);
-    for (const auto& region : regions) {
-        auto ovlp = box.IntersectWith(region.first);
-        if (ovlp.IsValid()) {
-            area += ovlp.area();
-        }
-    }
-    return area;
-}
-
-DBU RouteGrid::getOvlpFixedMetalArea(const BoxOnLayer& box, int netIdx) const {
-    return getOvlpArea(box, netIdx, fixedMetals);
-}
-
-DBU RouteGrid::getOvlpFixedMetalForbidRegionArea(const BoxOnLayer& box, int netIdx) const {
-    return getOvlpArea(box, netIdx, fixedMetalForbidRegions);
 }
 
 void RouteGrid::useEdge(const GridEdge& edge, int netIdx) {
@@ -751,6 +764,16 @@ void RouteGrid::useEdge(const GridEdge& edge, int netIdx) {
     } else {
         log() << "Warning in RouteGrid::useEdge: invalid edge type" << std::endl;
     }
+}
+
+void RouteGrid::markViaType(const GridPoint& via, const ViaType* viaType) {
+    viaTypeLock.lock();
+    if (viaType->idx == cutLayers[via.layerIdx].defaultViaType().idx) {
+        routedNonDefViaMap.erase(via);
+    } else {
+        routedNonDefViaMap[via] = viaType;
+    }
+    viaTypeLock.unlock();
 }
 
 void RouteGrid::useVia(const GridPoint& via, int netIdx, ViaMapT& netsOnVias) {
@@ -768,8 +791,8 @@ void RouteGrid::useVia(const GridPoint& via, int netIdx) {
 }
 
 void RouteGrid::useWireSegment(const TrackSegment& ts, int netIdx) {
-    wireLocks[ts.layerIdx][ts.trackIdx].lock();
     auto iclRange = boost::icl::interval<int>::closed(ts.crossPointRange.low, ts.crossPointRange.high);
+    wireLocks[ts.layerIdx][ts.trackIdx].lock();
     routedWireMap[ts.layerIdx][ts.trackIdx].add({iclRange, {netIdx}});
     wireLocks[ts.layerIdx][ts.trackIdx].unlock();
 }
@@ -785,38 +808,29 @@ void RouteGrid::usePoorWireSegment(const TrackSegment& ts, int netIdx) {
     poorWireMap[ts.layerIdx][ts.trackIdx].add({iclRange, netIdx});
 }
 
-void RouteGrid::useHistWireSegment(const TrackSegment& ts, HistUsageT usage) {
+void RouteGrid::useHistWireSegment(const TrackSegment& ts, int netIdx, HistUsageT usage) {
     auto iclRange = boost::icl::interval<int>::closed(ts.crossPointRange.low, ts.crossPointRange.high);
-    histWireMap[ts.layerIdx][ts.trackIdx].add({iclRange, usage});
+    histWireMap[ts.layerIdx][ts.trackIdx].add({iclRange, {netIdx, usage}});
 }
 
-void RouteGrid::markFixedMetal(int fixedObjectIdx) {
-    // fixedMetals
-    const BoxOnLayer& box = fixedMetalVec[fixedObjectIdx].first;
-    int netIdx = fixedMetalVec[fixedObjectIdx].second;
-
-    boostBox markBox(boostPoint(box.x.low, box.y.low), boostPoint(box.x.high, box.y.high));
-    fixedMetals[box.layerIdx].insert({markBox, netIdx});
-    // fixedMetalForbigRegions
-    auto regions = getAccurateMetalRectForbidRegions(box);
-    for (const auto& region : regions) {
-        boostBox markRegion(boostPoint(region.x.low, region.y.low), boostPoint(region.x.high, region.y.high));
-        fixedMetalForbidRegions[box.layerIdx].insert({markRegion, netIdx});
-    }
-
-    // fixedMetalC2CForbidRegions
-    // assume the forbid regions are two rect
-    if (!layers[box.layerIdx].isEolActive(box)) {
-        DBU space = layers[box.layerIdx].getSpace(box);
-        boostBox spaceBox(boostPoint(box.x.low - space, box.y.low - space),
-                          boostPoint(box.x.high + space, box.y.high + space));
-        fixedMetalC2CForbidRegions[box.layerIdx].insert({spaceBox, fixedObjectIdx});
+void RouteGrid::useHistWireSegments(const GridBoxOnLayer& gb, int netIdx, HistUsageT usage) {
+    auto iclRange = boost::icl::interval<int>::closed(gb.crossPointRange.low, gb.crossPointRange.high);
+    for (int trackIdx = gb.trackRange.low; trackIdx <= gb.trackRange.high; ++trackIdx) {
+        histWireMap[gb.layerIdx][trackIdx].add({iclRange, {netIdx, usage}});
     }
 }
 
-void RouteGrid::markFixedMetalBatch() {
+void RouteGrid::markFixedMetalBatch(vector<std::pair<BoxOnLayer, int>>& fixedMetalVec, int beginIdx, int endIdx) {
+    vector<vector<std::pair<boostBox, int>>> fixedMetalsRtreeItems;
+    fixedMetalsRtreeItems.resize(layers.size());
+
+    if (setting.dbVerbose >= +db::VerboseLevelT::MIDDLE) {
+        log() << "mark fixed metal batch ..." << std::endl;
+    }
+    const int initMem = utils::mem_use::get_current();
+
     vector<vector<int>> layerToObjIdx(getLayerNum());
-    for (unsigned i = 0; i < fixedMetalVec.size(); i++) layerToObjIdx[fixedMetalVec[i].first.layerIdx].push_back(i);
+    for (unsigned i = beginIdx; i < endIdx; i++) layerToObjIdx[fixedMetalVec[i].first.layerIdx].push_back(i);
 
     int curLayer = 0;
     std::mutex layer_mutex;
@@ -829,7 +843,19 @@ void RouteGrid::markFixedMetalBatch() {
 
             if (l >= getLayerNum()) return;
 
-            for (auto idx : layerToObjIdx[l]) markFixedMetal(idx);
+            for (auto idx : layerToObjIdx[l]) {
+                // fixedMetals
+                const BoxOnLayer& box = fixedMetalVec[idx].first;
+                int netIdx = fixedMetalVec[idx].second;
+
+                boostBox markBox(boostPoint(box.x.low, box.y.low), boostPoint(box.x.high, box.y.high));
+                fixedMetalsRtreeItems[box.layerIdx].push_back({markBox, netIdx});
+
+                DBU space = layers[box.layerIdx].getParaRunSpace(box);
+                if (space > layers[box.layerIdx].fixedMetalQueryMargin) {
+                    layers[box.layerIdx].fixedMetalQueryMargin = space;
+                }
+            }
         }
     };
 
@@ -837,6 +863,23 @@ void RouteGrid::markFixedMetalBatch() {
     std::thread threads[numThreads];
     for (int i = 0; i < numThreads; i++) threads[i] = std::thread(thread_func);
     for (int i = 0; i < numThreads; i++) threads[i].join();
+
+    const int curMem = utils::mem_use::get_current();
+    if (setting.dbVerbose >= +db::VerboseLevelT::MIDDLE) {
+        printflog("MEM(MB): init/cur=%d/%d, incr=%d\n", initMem, curMem, curMem - initMem);
+        log() << std::endl;
+    }
+
+    if (!beginIdx) {
+        for (int layerIdx = 0; layerIdx < layers.size(); layerIdx++) {
+            RTree tRtree(fixedMetalsRtreeItems[layerIdx]);
+            fixedMetals[layerIdx] = boost::move(tRtree);
+        }
+    } else {
+        for (int layerIdx = 0; layerIdx < layers.size(); layerIdx++) {
+            for (auto& item : fixedMetalsRtreeItems[layerIdx]) fixedMetals[layerIdx].insert(item);
+        }
+    }
 }
 
 void RouteGrid::removeEdge(const GridEdge& edge, int netIdx) {
@@ -851,13 +894,13 @@ void RouteGrid::removeEdge(const GridEdge& edge, int netIdx) {
     }
 }
 
-void RouteGrid::removeVia(const GridPoint& via, int netIdx, ViaMapT& netsOnVias) {
+void RouteGrid::removeVia(const GridPoint& via, int netIdx, ViaMapT& viaMap) {
     unsigned usage = 0;
     std::pair<std::multimap<int, int>::const_iterator, std::multimap<int, int>::const_iterator> itRange =
-        netsOnVias[via.layerIdx][via.trackIdx].equal_range(via.crossPointIdx);
+        viaMap[via.layerIdx][via.trackIdx].equal_range(via.crossPointIdx);
     for (std::multimap<int, int>::const_iterator it = itRange.first; it != itRange.second; ++it) {
         if (it->second == netIdx) {
-            netsOnVias[via.layerIdx][via.trackIdx].erase(it);
+            viaMap[via.layerIdx][via.trackIdx].erase(it);
             break;
         }
     }
@@ -867,6 +910,9 @@ void RouteGrid::removeVia(const GridPoint& via, int netIdx) {
     viaLocks[via.layerIdx][via.trackIdx].lock();
     removeVia(via, netIdx, routedViaMap);
     viaLocks[via.layerIdx][via.trackIdx].unlock();
+    viaTypeLock.lock();
+    routedNonDefViaMap.erase(via);
+    viaTypeLock.unlock();
     viaLocksUpper[via.layerIdx][via.trackIdx].lock();
     removeVia(getUpper(via), netIdx, routedViaMapUpper);
     viaLocksUpper[via.layerIdx][via.trackIdx].unlock();
@@ -874,7 +920,9 @@ void RouteGrid::removeVia(const GridPoint& via, int netIdx) {
 
 void RouteGrid::removeWireSegment(const TrackSegment& ts, int netIdx) {
     auto queryInterval = boost::icl::interval<int>::closed(ts.crossPointRange.low, ts.crossPointRange.high);
+    wireLocks[ts.layerIdx][ts.trackIdx].lock();
     routedWireMap[ts.layerIdx][ts.trackIdx].subtract({queryInterval, {netIdx}});
+    wireLocks[ts.layerIdx][ts.trackIdx].unlock();
 }
 
 void RouteGrid::removeWrongWayWireSegment(const WrongWaySegment& wws, int netIdx) {
@@ -884,7 +932,7 @@ void RouteGrid::removeWrongWayWireSegment(const WrongWaySegment& wws, int netIdx
 }
 
 void RouteGrid::printAllUsageAndVio() const {
-    constexpr int width = 10;
+    const int width = 10;
     auto wlVia = printAllUsage();
     auto shortSpace = printAllVio();
     log() << "--- Estimated Scores ---" << std::endl;
@@ -931,10 +979,10 @@ void RouteGrid::getAllWireUsage(const vector<int>& buckets,
     }
 }
 
-void RouteGrid::getAllViaUsage(const vector<int>& buckets, const ViaMapT& netsOnVias, vector<int>& viaUsage) const {
+void RouteGrid::getAllViaUsage(const vector<int>& buckets, const ViaMapT& viaMap, vector<int>& viaUsage) const {
     viaUsage.assign(buckets.size(), 0);
     for (unsigned layerIdx = 0; (layerIdx + 1) < getLayerNum(); ++layerIdx) {
-        for (const auto& track : netsOnVias[layerIdx]) {
+        for (const auto& track : viaMap[layerIdx]) {
             std::unordered_map<int, int> posUsages;
             for (const auto& via : track) {
                 ++posUsages[via.first];
@@ -947,7 +995,7 @@ void RouteGrid::getAllViaUsage(const vector<int>& buckets, const ViaMapT& netsOn
 }
 
 std::pair<double, double> RouteGrid::printAllUsage() const {
-    constexpr int width = 10;
+    const int width = 10;
     vector<int> buckets = {0, 1, 2, 3, 5, 10};  // the i-th bucket: buckets[i] <= x < buckets[i+1]
 
     // Wire
@@ -1018,10 +1066,11 @@ void RouteGrid::getAllViaVio(vector<int>& sameLayerViaVios,
         for (unsigned trackIdx = 0; trackIdx != layers[layerIdx].numTracks(); ++trackIdx) {
             for (const std::pair<int, int>& p : routedViaMap[layerIdx][trackIdx]) {
                 GridPoint via(layerIdx, trackIdx, p.first);
-                sameLayerViaVios[layerIdx] += getViaUsageOnSameLayerVias(via, p.second);
-                viaTopViaVios[layerIdx] += getViaUsageOnTopLayerVias(via, p.second);
-                viaBotWireVios[layerIdx] += getViaUsageOnWires(cutLayers[layerIdx].viaBotWire, via, p.second);
-                viaTopWireVios[layerIdx] += getViaUsageOnWires(cutLayers[layerIdx].viaTopWire, getUpper(via), p.second);
+                const ViaType* viaType = getViaType(via);
+                sameLayerViaVios[layerIdx] += getViaUsageOnSameLayerVias(via, p.second, viaType);
+                viaTopViaVios[layerIdx] += getViaUsageOnTopLayerVias(via, p.second, viaType);
+                viaBotWireVios[layerIdx] += getViaUsageOnBotWires(via, p.second, viaType);
+                viaTopWireVios[layerIdx] += getViaUsageOnTopWires(via, p.second, viaType);
                 if (getViaPoorness(via, p.second) == ViaPoorness::Poor) {
                     ++poorVia[layerIdx];
                 }
@@ -1086,7 +1135,7 @@ void RouteGrid::getAllWireSpaceVio(vector<int>& spaceVioNum) const {
 }
 
 std::pair<double, double> RouteGrid::printAllVio() const {
-    constexpr int width = 10;
+    const int width = 10;
     auto sumVec = [](const vector<int>& vec) {
         int sum = 0;
         for (int val : vec) {
@@ -1172,18 +1221,6 @@ std::pair<double, double> RouteGrid::printAllVio() const {
     return {poorVioArea + routedShortArea, spaceVioNum};
 }
 
-CostT RouteGrid::getNetVioCost(const Net& net) const {
-    CostT cost = 0.0;
-    net.postOrderVisitGridTopo([&](std::shared_ptr<GridSteiner> node) {
-        if (node->parent) {
-            cost += getEdgeVioCost({*node, *(node->parent)}, net.idx, false);
-        }
-    });
-    cost += unitMinAreaVioCost * (net.minAreaVio + net.minAreaShadowedVio);
-    cost += unitSpaceVioCost * net.viaPinVio;  // TODO: remove
-    return cost;
-}
-
 void RouteGrid::addHistCost() {
     if (setting.dbVerbose >= +db::VerboseLevelT::MIDDLE) {
         printlog("Add hist cost");
@@ -1200,13 +1237,13 @@ void RouteGrid::addWireHistCost() {
                 TrackSegment ts{layerIdx, trackIdx, {first(intvl), last(intvl)}};
                 int usage = intvlUsage.second.size();
                 if (usage > 1) {
-                    useHistWireSegment(ts, 1.0);
+                    useHistWireSegment(ts, OBS_NET_IDX, 1.0);
                 }
                 for (int netIdx : intvlUsage.second) {
                     vector<int> viaLocs = getWireSegmentUsageOnVias(ts, netIdx);
                     for (int cpIdx : viaLocs) {
                         cpIdx = min(max(first(intvl), cpIdx), last(intvl));
-                        useHistWireSegment({layerIdx, trackIdx, {cpIdx, cpIdx}}, 1.0);
+                        useHistWireSegment({layerIdx, trackIdx, {cpIdx, cpIdx}}, OBS_NET_IDX, 1.0);
                     }
                 }
                 // TODO: wire-wire spacing violations
@@ -1220,10 +1257,9 @@ void RouteGrid::addViaHistCost() {
         for (unsigned trackIdx = 0; trackIdx != layers[layerIdx].numTracks(); ++trackIdx) {
             for (const std::pair<int, int>& p : routedViaMap[layerIdx][trackIdx]) {
                 GridPoint via(layerIdx, trackIdx, p.first);
-                if (getViaUsageOnSameLayerVias(via, p.second) > 0 ||
-                    getViaUsageOnTopLayerVias(via, p.second) > 0) {  // ||
-                    // getViaUsageOnWires(cutLayers[layerIdx].viaBotWire, via, p.second) > 0 ||
-                    // getViaUsageOnWires(cutLayers[layerIdx].viaTopWire, getUpper(via), p.second)) {
+                if (getViaUsageOnVias(via, p.second, getViaType(via))) {  // ||
+                    // getViaUsageOnBotWires(via, p.second) > 0 ||
+                    // getViaUsageOnTopWires(via, p.second)) {
                     histViaMap[layerIdx][trackIdx][p.first] += 1.0;
                 }
             }
@@ -1231,28 +1267,47 @@ void RouteGrid::addViaHistCost() {
     }
 }
 
-void RouteGrid::fadeHistCost() {
+void RouteGrid::fadeHistCost(const vector<int>& exceptedNets) {
     if (setting.dbVerbose >= +db::VerboseLevelT::MIDDLE) {
         printlog("Fade hist cost by", setting.rrrFadeCoeff, "...");
     }
+    std::unordered_set<int> exceptedNetSet;
+    for (int netIdx : exceptedNets) exceptedNetSet.insert(netIdx);
     std::map<CostT, int> histWireUsage, histViaUsage;
     for (int layerIdx = 0; layerIdx < getLayerNum(); ++layerIdx) {
         for (int trackIdx = 0; trackIdx < layers[layerIdx].numTracks(); ++trackIdx) {
             // wire
             for (auto& intvl : histWireMap[layerIdx][trackIdx]) {
-                intvl.second *= setting.rrrFadeCoeff;
-                ++histWireUsage[intvl.second];
+                auto& histWire = intvl.second;
+                if (histWire.netIdx == OBS_NET_IDX || exceptedNetSet.find(histWire.netIdx) == exceptedNetSet.end()) {
+                    histWire.usage *= setting.rrrFadeCoeff;
+                }
             }
             // via
             for (auto& p : histViaMap[layerIdx][trackIdx]) {
                 p.second *= setting.rrrFadeCoeff;
-                ++histViaUsage[p.second];
             }
         }
     }
+}
+
+void RouteGrid::statHistCost() const {
     if (setting.dbVerbose >= +db::VerboseLevelT::MIDDLE) {
-        printlog("Hist wire usage after fading is", histWireUsage);
-        printlog("Hist via usage after fading is", histViaUsage);
+        std::map<CostT, int> histWireUsage, histViaUsage;
+        for (int layerIdx = 0; layerIdx < getLayerNum(); ++layerIdx) {
+            for (int trackIdx = 0; trackIdx < layers[layerIdx].numTracks(); ++trackIdx) {
+                // wire
+                for (auto& intvl : histWireMap[layerIdx][trackIdx]) {
+                    ++histWireUsage[intvl.second.usage];
+                }
+                // via
+                for (auto& p : histViaMap[layerIdx][trackIdx]) {
+                    ++histViaUsage[p.second];
+                }
+            }
+        }
+        printlog("Hist wire usage is", histWireUsage);
+        printlog("Hist via usage is", histViaUsage);
     }
 }
 

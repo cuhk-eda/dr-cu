@@ -48,6 +48,10 @@ public:
 	const NetGuide & getGuide(Rsyn::Net net) const {
 		return clsGuides[net];
 	}
+        
+        void updateGuide(Rsyn::Net net, Rsyn::NetGuide guide) {
+            clsGuides[net] = guide;
+        }
 }; // end class 
 
 } // end namespace 

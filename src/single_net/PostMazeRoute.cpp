@@ -1,16 +1,30 @@
 #include "PostMazeRoute.h"
 
+void PostMazeRoute::run() {
+    removeTrackSwitchWithVio();
+    extendMinAreaWires();
+}
+
+void PostMazeRoute::run2() {
+    net.postOrderVisitGridTopo([&](std::shared_ptr<db::GridSteiner> node) {
+        if (node->extWireSeg && database.getEdgeVioCost(*(node->extWireSeg), net.idx, false)) {
+            node->extWireSeg.reset();
+        }
+    });
+    extendMinAreaWires();
+}
+
 void PostMazeRoute::removeTrackSwitchWithVio() {
     // 1. Track switch around pin
     // handle root/leaf pin taps only for simplicity (TODO: generalize)
     // TODO: consider via connecting to lower metal layers
-    std::vector<std::shared_ptr<db::GridSteiner>> pinTaps[localNet.numOfPins()];
+    std::vector<std::shared_ptr<db::GridSteiner>> pinTaps[net.numOfPins()];
     auto isViaTap = [](std::shared_ptr<db::GridSteiner> node) {
         return node->pinIdx >= 0 &&
                ((node->parent && node->children.empty() && node->parent->layerIdx > node->layerIdx) ||
                 (!(node->parent) && node->children.size() == 1 && node->children[0]->layerIdx > node->layerIdx));
     };
-    localNet.postOrderVisitGridTopo([&](std::shared_ptr<db::GridSteiner> node) {
+    net.postOrderVisitGridTopo([&](std::shared_ptr<db::GridSteiner> node) {
         if (node->pinIdx >= 0) {
             pinTaps[node->pinIdx].push_back(node);
         }
@@ -32,11 +46,13 @@ void PostMazeRoute::removeTrackSwitchWithVio() {
                 }
                 auto neighI = tapI->parent ? tapI->parent : tapI->children[0];
                 auto neighJ = tapJ->parent ? tapJ->parent : tapJ->children[0];
-                const auto &viaCut = database.getCutLayer(tapI->layerIdx).viaCut;
-                int lowerDiff = abs(tapI->trackIdx - tapJ->trackIdx);
-                int upperDiff = abs(neighI->trackIdx - neighJ->trackIdx);
-                if (lowerDiff < viaCut.size() && upperDiff < viaCut[0].size() && viaCut[lowerDiff][upperDiff]) {
-                    db::routeStat.increment(db::RouteStage::MAZE, db::MiscRouteEvent::REMOVE_TRACK_SWITCH_PIN, 1);
+                const auto &viaCut = database.getCutLayer(tapI->layerIdx).viaCut();
+                const int lowerDiff = abs(tapI->trackIdx - tapJ->trackIdx);
+                const int upperDiff = abs(neighI->trackIdx - neighJ->trackIdx);
+                const unsigned xSize = viaCut.size() / 2;
+                const unsigned ySize = viaCut[0].size() / 2;
+                if (lowerDiff <= xSize && upperDiff <= ySize && viaCut[lowerDiff + xSize][upperDiff + ySize]) {
+                    db::routeStat.increment(db::RouteStage::POST_MAZE, db::MiscRouteEvent::REMOVE_TRACK_SWITCH_PIN, 1);
                     // remove tapI, graft neighI to neighJ
                     db::GridSteiner::resetParent(neighI);
                     if (tapI->trackIdx == tapJ->trackIdx || tapI->crossPointIdx == tapJ->crossPointIdx) {
@@ -55,7 +71,7 @@ void PostMazeRoute::removeTrackSwitchWithVio() {
 
     // 2. Normal track switch
     // node - c - cc - ccc
-    localNet.postOrderVisitGridTopo([&](std::shared_ptr<db::GridSteiner> node) {
+    net.postOrderVisitGridTopo([&](std::shared_ptr<db::GridSteiner> node) {
         auto tmpC = node->children;
         for (auto c : tmpC) {
             if (node->layerIdx == c->layerIdx) continue;
@@ -69,12 +85,12 @@ void PostMazeRoute::removeTrackSwitchWithVio() {
                         c->trackIdx == cc->trackIdx                   // redundant constraint for safety
                     ) {
                         // check size first (more efficient)
-                        int size = (node->layerIdx < c->layerIdx)
-                                       ? database.getCutLayer(node->layerIdx).viaMetal.size()
-                                       : database.getCutLayer(c->layerIdx).viaMetal[0].size();
-                        if (abs(node->trackIdx - ccc->trackIdx) < size) {
+                        const int size = (node->layerIdx < c->layerIdx)
+                                       ? database.getCutLayer(node->layerIdx).viaMetal().size() / 2
+                                       : database.getCutLayer(c->layerIdx).viaMetal()[0].size() / 2;
+                        if (abs(node->trackIdx - ccc->trackIdx) <= size) {
                             db::routeStat.increment(
-                                db::RouteStage::MAZE, db::MiscRouteEvent::REMOVE_TRACK_SWITCH_NORMAL, 1);
+                                db::RouteStage::POST_MAZE, db::MiscRouteEvent::REMOVE_TRACK_SWITCH_NORMAL, 1);
                             if (c->children.size() > 1 || c->pinIdx >= 0 || cc->children.size() > 1 ||
                                 cc->pinIdx >= 0) {
                                 // has Steiner or pin: add edge node-ccc, remove edge cc-ccc
@@ -94,36 +110,241 @@ void PostMazeRoute::removeTrackSwitchWithVio() {
         }
     });
     // c2 - node - c1 - cc1
-    localNet.postOrderVisitGridTopo([&](std::shared_ptr<db::GridSteiner> node) {
-        auto tmpC = node->children;
-        for (auto c1 : tmpC) {
+    net.postOrderVisitGridTopo([&](std::shared_ptr<db::GridSteiner> node) {
+        vector<std::shared_ptr<db::GridSteiner>> tmpC = node->children;
+        for (std::shared_ptr<db::GridSteiner> c1 : tmpC) {
             if (node->layerIdx != c1->layerIdx) continue;
-            auto tmpCC = c1->children;
-            for (auto c2 : tmpC) {
+            vector<std::shared_ptr<db::GridSteiner>> tmpCC = c1->children;
+            for (std::shared_ptr<db::GridSteiner> c2 : tmpC) {
                 if (node->layerIdx == c2->layerIdx) continue;  // c1 and c2 is guaranteed to be different by layerIdx
-                for (auto cc1 : tmpCC) {
-                    if (c2->layerIdx == cc1->layerIdx &&
-                        c2->crossPointIdx == cc1->crossPointIdx &&  // redundant constraint for safety
-                        node->trackIdx == c1->trackIdx              // redundant constraint for safety
+                for (std::shared_ptr<db::GridSteiner> cc1 : tmpCC) {
+                    if (c2->layerIdx != cc1->layerIdx ||
+                        c2->crossPointIdx != cc1->crossPointIdx ||  // redundant constraint for safety
+                        node->trackIdx != c1->trackIdx              // redundant constraint for safety
                     ) {
-                        // check size first (more efficient)
-                        int size = (c2->layerIdx < node->layerIdx)
-                                       ? database.getCutLayer(c2->layerIdx).viaMetal.size()
-                                       : database.getCutLayer(node->layerIdx).viaMetal[0].size();
-                        if (abs(c2->trackIdx - cc1->trackIdx) < size) {
-                            // has Steiner or pin: add edge c2-cc1, remove edge c1-cc1
-                            db::GridSteiner::resetParent(cc1);
-                            db::GridSteiner::setParent(cc1, c2);
-                        }
+                        continue;
+                    }
+                    // check size first (more efficient)
+                    const unsigned size = (c2->layerIdx < node->layerIdx)
+                                              ? database.getCutLayer(c2->layerIdx).viaMetal().size() / 2
+                                              : database.getCutLayer(node->layerIdx).viaMetal()[0].size() / 2;
+                    if (static_cast<unsigned>(abs(c2->trackIdx - cc1->trackIdx)) <= size) {
+                        // has Steiner or pin: add edge c2-cc1, remove edge c1-cc1
+                        db::GridSteiner::resetParent(cc1);
+                        db::GridSteiner::setParent(cc1, c2);
                     }
                 }
             }
         }
     });
 
-    // 3. Clean up
+    // 3. Horseshoe track switch
+    // node - c - s - cc - ccc
+    net.postOrderVisitGridTopo([&](std::shared_ptr<db::GridSteiner> node) {
+        vector<std::shared_ptr<db::GridSteiner>> tmpC = node->children;
+        for (std::shared_ptr<db::GridSteiner> c : tmpC) {
+            const vector<std::shared_ptr<db::GridSteiner>> tmpCC = c->children;
+            if (node->layerIdx != c->layerIdx || node->trackIdx != c->trackIdx || tmpCC.empty()) {
+                //  FIXME: should be `continue`
+                return;
+            }
+            std::shared_ptr<db::GridSteiner> s = nullptr;
+            if (c->pinIdx >= 0 || tmpCC.size() > 1) s = c;
+            for (std::shared_ptr<db::GridSteiner> cc : tmpCC) {
+                if (c->layerIdx != cc->layerIdx || c->crossPointIdx != cc->crossPointIdx) continue;
+                const int nodeDCP = node->crossPointIdx - c->crossPointIdx;
+                int ccDCP = 0;
+                std::shared_ptr<db::GridSteiner> ccc = nullptr;
+                while (true) {
+                    const vector<std::shared_ptr<db::GridSteiner>> &tmpCCC = cc->children;
+                    if (tmpCCC.empty()) break;
+                    if (cc->pinIdx >= 0 || tmpCCC.size() > 1) {
+                        if (s) break;
+                        s = cc;
+                    }
+                    for (std::shared_ptr<db::GridSteiner> tccc : tmpCCC) {
+                        if (cc->layerIdx != tccc->layerIdx) continue;
+                        if (cc->crossPointIdx == tccc->crossPointIdx) {
+                            ccc = tccc;
+                            continue;
+                        }
+                        ccDCP = cc->crossPointIdx - tccc->crossPointIdx;
+                        if (cc->trackIdx != tccc->trackIdx || nodeDCP * ccDCP > 0) continue;
+                        ccc = tccc;
+                        break;
+                    }
+                    if (!ccc || cc->crossPointIdx != ccc->crossPointIdx) break;
+                    if (s != cc) {
+                        db::GridSteiner::resetParent(cc);
+                        db::GridSteiner::resetParent(ccc);
+                        db::GridSteiner::setParent(ccc, c);
+                    }
+                    cc = ccc;
+                    ccc = nullptr;
+                }
+                if (!ccc) continue;
+                const int crossPointIdx = abs(nodeDCP) <= abs(ccDCP) ? node->crossPointIdx : ccc->crossPointIdx;
+                if (database.getWrongWayWireSegmentVioCost(
+                        {node->layerIdx,
+                         {std::min(node->trackIdx, ccc->trackIdx) + 1, std::max(node->trackIdx, ccc->trackIdx) - 1},
+                         crossPointIdx},
+                        net.idx,
+                        false) ||
+                    s && s != c && s != cc &&
+                        database.getWireSegmentVioCost(
+                            {s->layerIdx,
+                             s->trackIdx,
+                             {std::min(crossPointIdx, s->crossPointIdx), std::max(crossPointIdx, s->crossPointIdx)}},
+                            net.idx,
+                            false)) {
+                    //  FIXME: should be `continue`
+                    return;
+                }
+                db::routeStat.increment(
+                    db::RouteStage::POST_MAZE, db::MiscRouteEvent::REMOVE_TRACK_SWITCH_HORSESHOE, 1);
+                db::GridSteiner::resetParent(c);
+                db::GridSteiner::resetParent(cc);
+                db::GridSteiner::resetParent(ccc);
+                std::shared_ptr<db::GridSteiner> nn = nullptr;
+                std::shared_ptr<db::GridSteiner> nc = nullptr;
+                if (abs(nodeDCP) > abs(ccDCP)) {
+                    nn =
+                        std::make_shared<db::GridSteiner>(db::GridPoint(node->layerIdx, node->trackIdx, crossPointIdx));
+                    db::GridSteiner::setParent(nn, node);
+                } else {
+                    nn = node;
+                }
+                if (abs(nodeDCP) < abs(ccDCP)) {
+                    nc = std::make_shared<db::GridSteiner>(db::GridPoint(ccc->layerIdx, ccc->trackIdx, crossPointIdx));
+                    db::GridSteiner::setParent(ccc, nc);
+                } else {
+                    nc = ccc;
+                }
+                if (s == c) {
+                    db::GridSteiner::setParent(nc, nn);
+                    db::GridSteiner::setParent(s, nn);
+                } else if (s == cc) {
+                    db::GridSteiner::setParent(nc, nn);
+                    db::GridSteiner::setParent(s, nc);
+                } else if (s) {
+                    db::GridSteiner::resetParent(s);
+                    std::shared_ptr<db::GridSteiner> ns =
+                        std::make_shared<db::GridSteiner>(db::GridPoint(s->layerIdx, s->trackIdx, crossPointIdx));
+                    db::GridSteiner::setParent(ns, nn);
+                    db::GridSteiner::setParent(nc, ns);
+                    db::GridSteiner::setParent(s, ns);
+                } else {
+                    db::GridSteiner::setParent(nc, nn);
+                }
+            }
+        }
+    });
+    // cc1 - c1 - node - c2 - cc2
+    net.postOrderVisitGridTopo([&](std::shared_ptr<db::GridSteiner> node) {
+        vector<std::shared_ptr<db::GridSteiner>> tmpC = node->children;
+        //  { children connected to children of children with higher cross point indices,
+        //    children connected to children of children with lower cross point indices }
+        vector<vector<std::shared_ptr<db::GridSteiner>>> cs(2);
+        //  { children of children with higher cross point indices,
+        //    children of children with lower cross point indices }
+        vector<vector<std::shared_ptr<db::GridSteiner>>> ccs(2);
+        // construct cs and ccs
+        for (std::shared_ptr<db::GridSteiner> c : tmpC) {
+            if (node->layerIdx != c->layerIdx) continue;
+            std::shared_ptr<db::GridSteiner> cc = nullptr;
+            if (node->crossPointIdx == c->crossPointIdx) {
+                while (c->pinIdx < 0 && c->children.size() == 1) {
+                    std::shared_ptr<db::GridSteiner> tcc = c->children[0];
+                    if (c->layerIdx != tcc->layerIdx) break;
+                    if (c->crossPointIdx == tcc->crossPointIdx) {
+                        db::GridSteiner::resetParent(c);
+                        db::GridSteiner::resetParent(tcc);
+                        db::GridSteiner::setParent(tcc, node);
+                        c = tcc;
+                    } else {
+                        cc = tcc;
+                        break;
+                    }
+                }
+                if (!cc || c->trackIdx != cc->trackIdx) continue;
+            } else if (node->trackIdx == c->trackIdx) {
+                cc = c;
+                c = node;
+            } else {
+                continue;
+            }
+            if (c->crossPointIdx < cc->crossPointIdx) {
+                cs[0].push_back(c);
+                ccs[0].push_back(cc);
+            } else {
+                cs[1].push_back(c);
+                ccs[1].push_back(cc);
+            }
+        }
+        //  remove extra cs
+        for (unsigned i = 0; i != 2; ++i) {
+            if (cs[i].size() < 2) continue;
+            int minTrackIdx = INT_MAX;
+            int maxTrackIdx = INT_MIN;
+            int steinerCrossPointIdx = i ? INT_MIN : INT_MAX;
+            int trunkCrossPointIdx = i ? INT_MIN : INT_MAX;
+            const unsigned ncs = cs[i].size();
+            std::shared_ptr<db::GridSteiner> nn = nullptr;
+            for (unsigned j = 0; j != ncs; ++j) {
+                minTrackIdx = std::min(minTrackIdx, ccs[i][j]->trackIdx);
+                maxTrackIdx = std::max(maxTrackIdx, ccs[i][j]->trackIdx);
+                if (i) {
+                    steinerCrossPointIdx = std::max(steinerCrossPointIdx, ccs[i][j]->crossPointIdx);
+                    if (cs[i][j] == node && ccs[i][j]->crossPointIdx > trunkCrossPointIdx) {
+                        nn = ccs[i][j];
+                        trunkCrossPointIdx = ccs[i][j]->crossPointIdx;
+                    }
+                } else {
+                    steinerCrossPointIdx = std::min(steinerCrossPointIdx, ccs[i][j]->crossPointIdx);
+                    if (cs[i][j] == node && ccs[i][j]->crossPointIdx < trunkCrossPointIdx) {
+                        nn = ccs[i][j];
+                        trunkCrossPointIdx = ccs[i][j]->crossPointIdx;
+                    }
+                }
+            }
+            if (database.getWrongWayWireSegmentVioCost(
+                    {node->layerIdx, {minTrackIdx + 1, maxTrackIdx - 1}, steinerCrossPointIdx}, net.idx, false) ||
+                trunkCrossPointIdx != INT_MIN && trunkCrossPointIdx != INT_MAX &&
+                    database.getWireSegmentVioCost({node->layerIdx,
+                                                    node->trackIdx,
+                                                    {std::min(steinerCrossPointIdx, node->crossPointIdx),
+                                                     std::max(steinerCrossPointIdx, node->crossPointIdx)}},
+                                                   net.idx,
+                                                   false)) {
+                return;
+            }
+            db::routeStat.increment(db::RouteStage::POST_MAZE, db::MiscRouteEvent::REMOVE_TRACK_SWITCH_HORSESHOE, 1);
+            if (steinerCrossPointIdx != trunkCrossPointIdx) {
+                nn = std::make_shared<db::GridSteiner>(
+                    db::GridPoint(node->layerIdx, node->trackIdx, steinerCrossPointIdx));
+                db::GridSteiner::setParent(nn, node);
+            }
+            for (unsigned j = 0; j != ncs; ++j) {
+                if (cs[i][j] != node) {
+                    db::GridSteiner::resetParent(cs[i][j]);
+                }
+                if (ccs[i][j] == nn) continue;
+                db::GridSteiner::resetParent(ccs[i][j]);
+                if (cs[i][j] == node || ccs[i][j]->crossPointIdx == steinerCrossPointIdx)
+                    db::GridSteiner::setParent(ccs[i][j], nn);
+                else {
+                    std::shared_ptr<db::GridSteiner> nc = std::make_shared<db::GridSteiner>(
+                        db::GridPoint(nn->layerIdx, ccs[i][j]->trackIdx, steinerCrossPointIdx));
+                    db::GridSteiner::setParent(ccs[i][j], nc);
+                    db::GridSteiner::setParent(nc, nn);
+                }
+            }
+        }
+    });
+
+    // 4. Clean up
     // remove redundant nodes
-    localNet.postOrderVisitGridTopo([&](std::shared_ptr<db::GridSteiner> node) {
+    net.postOrderVisitGridTopo([&](std::shared_ptr<db::GridSteiner> node) {
         auto tmpC = node->children;
         for (auto c : tmpC) {
             if (c->pinIdx < 0 && c->children.size() == 0) {
@@ -133,129 +354,146 @@ void PostMazeRoute::removeTrackSwitchWithVio() {
     });
     // merge wrong-way edges (rarely triggered, but essential for Innovus' connectivity check)
     // node - c - cc
-    localNet.postOrderVisitGridTopo([&](std::shared_ptr<db::GridSteiner> node) {
-        if (node->pinIdx < 0 && node->children.size() == 1) {
-            auto c = node->children[0];
-            if (node->layerIdx == c->layerIdx && node->crossPointIdx == c->crossPointIdx && c->pinIdx < 0 &&
-                c->children.size() == 1) {
-                auto cc = c->children[0];
-                if (c->layerIdx == cc->layerIdx && c->crossPointIdx == cc->crossPointIdx) {
-                    db::GridSteiner::resetParent(c);
-                    db::GridSteiner::resetParent(cc);
-                    db::GridSteiner::setParent(cc, node);
-                }
-            }
+    net.postOrderVisitGridTopo([&](std::shared_ptr<db::GridSteiner> node) {
+        if (node->pinIdx >= 0 || node->children.size() != 1) return;
+        auto c = node->children[0];
+        if (node->layerIdx != c->layerIdx || node->crossPointIdx != c->crossPointIdx || c->pinIdx >= 0 ||
+            c->children.size() != 1) {
+            return;
+        }
+        auto cc = c->children[0];
+        if (c->layerIdx == cc->layerIdx && c->crossPointIdx == cc->crossPointIdx) {
+            db::GridSteiner::resetParent(c);
+            db::GridSteiner::resetParent(cc);
+            db::GridSteiner::setParent(cc, node);
         }
     });
 }
 
 void PostMazeRoute::extendMinAreaWires() {
-    vector<db::GridEdge> candidateEdges;  // edges that may violate min-area constraint
+    // edges that may violate min-area constraint
+    std::vector<std::vector<std::shared_ptr<db::GridSteiner>>> candidateEdges;
 
     // 1. Mark wrong-way segments
     // assume wrong-way segments make min area rule satisfied...
     std::unordered_set<std::shared_ptr<db::GridSteiner>> hasWrongWaySeg;
-    localNet.postOrderVisitGridTopo([&](std::shared_ptr<db::GridSteiner> node) {
+    net.postOrderVisitGridTopo([&](std::shared_ptr<db::GridSteiner> node) {
         if (node->parent && db::GridEdge(*node, *(node->parent)).isWrongWaySegment()) {
             hasWrongWaySeg.insert(node);
             hasWrongWaySeg.insert(node->parent);
         }
     });
 
-    // 2. Process Steiner with two track segments
-    std::unordered_set<std::shared_ptr<db::GridSteiner>> hasTwoTrackSegs;
-    localNet.postOrderVisitGridTopo([&](std::shared_ptr<db::GridSteiner> node) {
-        if (hasWrongWaySeg.find(node) == hasWrongWaySeg.end()) {
-            vector<std::shared_ptr<db::GridSteiner>> neighs;
-            if (node->parent && db::GridEdge(*node, *(node->parent)).isTrackSegment()) {
-                neighs.push_back(node->parent);
-            }
-            for (auto child : node->children) {
-                if (db::GridEdge(*node, *child).isTrackSegment()) {
-                    neighs.push_back(child);
-                    if (neighs.size() >= 2) {
-                        break;
+    // 2. Process track segments (may be pieced)
+    net.postOrderVisitGridTopo([&](std::shared_ptr<db::GridSteiner> node) {
+        if (node->isRealPin() || hasWrongWaySeg.find(node) != hasWrongWaySeg.end()) return;
+        if (node->parent && db::GridEdge(*node, *(node->parent)).isTrackSegment()) return;
+        vector<std::shared_ptr<db::GridSteiner>> descendants;
+        for (auto c : node->children) {
+            if (db::GridEdge(*node, *c).isTrackSegment()) {
+                if (c->isRealPin() || hasWrongWaySeg.find(c) != hasWrongWaySeg.end()) return;
+                // extend track segment along node -> c -> cc
+                bool extended = true;
+                while (extended) {
+                    extended = false;
+                    for (auto cc : c->children) {
+                        if (db::GridEdge(*cc, *c).isTrackSegment()) {
+                            if (cc->isRealPin() || hasWrongWaySeg.find(cc) != hasWrongWaySeg.end()) return;
+                            extended = true;
+                            c = cc;
+                            break;
+                        }
                     }
                 }
+                descendants.push_back(c);
+                if (descendants.size() > 2) break;  // at most two
             }
-            if (neighs.size() == 2 && hasWrongWaySeg.find(neighs[0]) == hasWrongWaySeg.end() &&
-                hasWrongWaySeg.find(neighs[1]) == hasWrongWaySeg.end()) {
-                hasTwoTrackSegs.insert(node);
-                // skip pin
-                if (node->pinIdx < 0 && neighs[0]->pinIdx < 0 && neighs[1]->pinIdx < 0) {
-                    candidateEdges.emplace_back(*neighs[0], *neighs[1]);
-                }
-            }
+        }
+        if (descendants.size() == 1) {
+            // track segment node - neigh[0]
+            candidateEdges.push_back({node, descendants[0]});
+        } else if (descendants.size() == 2) {
+            // track segment neigh[0] - node - neigh[1]
+            candidateEdges.push_back({descendants[0], descendants[1]});
         }
     });
 
-    // 3. Process Steiner with 1. two vias only or 2. single track segment
-    localNet.postOrderVisitGridTopo([&](std::shared_ptr<db::GridSteiner> node) {
-        if (node->parent && node->pinIdx < 0 && hasTwoTrackSegs.find(node) == hasTwoTrackSegs.end()) {
-            db::GridEdge edge(*node, *(node->parent));
-            if (edge.isVia() && node->children.size() == 1 &&
-                db::GridEdge(*node, *(node->children[0])).isVia()) {  // both are vias
-                candidateEdges.emplace_back(*node, *node);
-            } else if (edge.isTrackSegment() && hasWrongWaySeg.find(node) == hasWrongWaySeg.end() &&
-                       hasWrongWaySeg.find(node->parent) == hasWrongWaySeg.end() &&
-                       (node->parent->pinIdx < 0 && hasTwoTrackSegs.find(node->parent) == hasTwoTrackSegs.end())) {
-                candidateEdges.push_back(edge);
+    // 3. Process vias (1. two vias only, 2. single via with fake pin)
+    net.postOrderVisitGridTopo([&](std::shared_ptr<db::GridSteiner> node) {
+        if (!(node->parent)) return;
+        db::GridEdge edge(*node, *(node->parent));
+        if (edge.isVia()) {
+            if (!node->isRealPin()) {
+                if (node->children.size() == 1 &&
+                    db::GridEdge(*node, *(node->children[0])).isVia()) {  // case 1: both are vias
+                    candidateEdges.push_back({node});
+                } else if (node->children.empty()) {  // case 2.1: node end by a via (should be a fakePin)
+                    candidateEdges.push_back({node});
+                }
+            }
+            if (!node->parent->isRealPin() && !(node->parent->parent) &&
+                node->parent->children.size() == 1) {  // case 2.2: parent end by a via (should be a fakePin)
+                candidateEdges.push_back({node->parent});
             }
         }
     });
 
     // 4. Check
-    localNet.minAreaVio = 0;
-    localNet.minAreaShadowedVio = 0;
-    for (const auto &edge : candidateEdges) {
-        const db::MetalLayer &layer = database.getLayer(edge.u.layerIdx);
-        if (layer.hasMinLenVioAcc(layer.getTrackSegmentLen(edge))) {
-            vector<db::GridEdge> wirePatches = getExtendWireRects(edge);
-            for (const auto &patch : wirePatches) localNet.extendedWireSegment.push_back(patch);
+    for (const auto &candEdge : candidateEdges) {
+        bool handled = false;
+        for (const auto &gridSteiner : candEdge) {
+            if (gridSteiner->extWireSeg) {
+                handled = true;
+                break;
+            }
         }
+        if (!handled) getExtendWireRects(candEdge);
     }
 }
 
-vector<db::GridEdge> PostMazeRoute::getExtendWireRects(const db::GridEdge &edge) const {
-    // assume input edge has minArea violation
-    const int leftCP = edge.u.crossPointIdx < edge.v.crossPointIdx ? edge.u.crossPointIdx : edge.v.crossPointIdx;
-    const int rightCP = edge.u.crossPointIdx >= edge.v.crossPointIdx ? edge.u.crossPointIdx : edge.v.crossPointIdx;
-    const db::MetalLayer &layer = database.getLayer(edge.u.layerIdx);
-    const int trackIdx = edge.u.trackIdx;
-    DBU minLen;
-
-    vector<db::GridEdge> wirePatches;
+void PostMazeRoute::getExtendWireRects(const std::vector<std::shared_ptr<db::GridSteiner>> &candEdge) const {
+    if (candEdge.size() < 1 || candEdge.size() > 2) {
+        printlog("Error: invalid candEdge size in PostMazeRoute::getExtendWireRects()");
+        return;
+    }
+    int leftCP, rightCP;
+    if (candEdge.size() == 1) {
+        leftCP = rightCP = candEdge[0]->crossPointIdx;
+    } else {
+        leftCP = std::min(candEdge[0]->crossPointIdx, candEdge[1]->crossPointIdx);
+        rightCP = std::max(candEdge[0]->crossPointIdx, candEdge[1]->crossPointIdx);
+    }
+    const int trackIdx = candEdge[0]->trackIdx;
+    const db::MetalLayer &layer = database.getLayer(candEdge[0]->layerIdx);
+    if (!layer.hasMinLenVioAcc(layer.getCrossPointRangeDist({leftCP, rightCP}))) return;
 
     // get the lower and upper bound cp index to fix minArea violation and get the interval cp usage
-    minLen = layer.getMinLen();
+    DBU minLen = layer.getMinLen();
     int low = leftCP - 1, high = rightCP + 1;
     while (low >= 0 && minLen > layer.getCrossPointRangeDist({low, rightCP})) low--;
     low = max(0, low);
     while (high < layer.numCrossPoints() && minLen > layer.getCrossPointRangeDist({leftCP, high})) high++;
     high = min(high, layer.numCrossPoints() - 1);
-    vector<db::CostT> crossPointVioCost =
-        database.getShortWireSegmentVioCost({layer.idx, trackIdx, {low, high}}, localNet.idx, false);
+    vector<db::CostT> crossPointVioCostWOHist =
+        database.getShortWireSegmentVioCost({layer.idx, trackIdx, {low, high}}, net.idx, false);
 
-    // no overlapping in the edge itself
+    // with other violations in the candEdge itself?
     bool withOtherViolations = false;
     for (int i = leftCP; i <= rightCP; i++) {
-        if (crossPointVioCost[i - low] > 0) {
-            db::routeStat.increment(db::RouteStage::MAZE, +db::MiscRouteEvent::MIN_AREA_SHADOWED_VIO, 1);
-            ++localNet.minAreaShadowedVio;
+        if (crossPointVioCostWOHist[i - low] > 0) {
+            db::routeStat.increment(db::RouteStage::POST_MAZE, +db::MiscRouteEvent::MIN_AREA_SHADOWED_VIO, 1);
             withOtherViolations = true;
             break;
         }
     }
 
-    bool succ = false;
+    // get the most balancing patches
     int begin = leftCP, end = rightCP;
-
-    if (!succ) {
-        minLen = layer.getMinLen();
-        // get the most balancing patches
-        begin = leftCP;
-        end = rightCP;
-        if (!withOtherViolations) {
+    bool succ = false;
+    if (!withOtherViolations) {
+        auto extendRange = [&](const vector<db::CostT> &crossPointVioCost) {
+            begin = leftCP;
+            end = rightCP;
             for (bool moveLeft = false, leftStop = false, rightStop = false;;) {
                 if (begin < low || crossPointVioCost[begin - low] > 0) {
                     leftStop = true;
@@ -275,13 +513,18 @@ vector<db::GridEdge> PostMazeRoute::getExtendWireRects(const db::GridEdge &edge)
                     end++;
                 }
             }
+            succ = !layer.hasMinLenVio(layer.getCrossPointRangeDist({begin, end}));
+        };
+        vector<db::CostT> crossPointVioCostWHist =
+            database.getShortWireSegmentVioCost({layer.idx, trackIdx, {low, high}}, net.idx, true);
+        extendRange(crossPointVioCostWHist);
+        if (!succ) {
+            extendRange(crossPointVioCostWOHist);
         }
-        succ = !layer.hasMinLenVio(layer.getCrossPointRangeDist({begin, end}));
     }
 
     // convert min-area violations to space/short violations for generating history cost
-    if ((db::rrrIter + 1) < db::setting.rrrIterLimit && !succ) {
-        minLen = layer.getMinLen();
+    if (db::rrrIterSetting.converMinAreaToOtherVio && !succ) {
         for (bool moveLeft = false, leftStop = false, rightStop = false;;) {
             if (begin < low) {
                 leftStop = true;
@@ -305,25 +548,27 @@ vector<db::GridEdge> PostMazeRoute::getExtendWireRects(const db::GridEdge &edge)
     }
 
     if (!succ && !withOtherViolations) {
-        db::routeStat.increment(db::RouteStage::MAZE, +db::MiscRouteEvent::MIN_AREA_VIO, 1);
-        ++localNet.minAreaVio;
+        db::routeStat.increment(db::RouteStage::POST_MAZE, +db::MiscRouteEvent::MIN_AREA_VIO, 1);
     }
 
     // return
+    vector<db::GridEdge> wirePatches;
     if (succ) {
-        if (begin != leftCP)
-            wirePatches.emplace_back(db::GridPoint(layer.idx, trackIdx, begin),
-                                     db::GridPoint(layer.idx, trackIdx, leftCP));
-        if (end != rightCP)
-            wirePatches.emplace_back(db::GridPoint(layer.idx, trackIdx, rightCP),
-                                     db::GridPoint(layer.idx, trackIdx, end));
+        if (candEdge.size() == 1) {
+            // a long wire ext
+            candEdge[0]->extWireSeg = std::make_unique<db::GridEdge>(db::GridPoint(layer.idx, trackIdx, begin),
+                                                                     db::GridPoint(layer.idx, trackIdx, end));
+        } else {
+            // one or two short wire ext
+            for (const auto &gridSteiner : candEdge) {
+                if (gridSteiner->crossPointIdx == leftCP && begin != leftCP) {
+                    gridSteiner->extWireSeg = std::make_unique<db::GridEdge>(
+                        db::GridPoint(layer.idx, trackIdx, begin), db::GridPoint(layer.idx, trackIdx, leftCP));
+                } else if (gridSteiner->crossPointIdx == rightCP && end != rightCP) {
+                    gridSteiner->extWireSeg = std::make_unique<db::GridEdge>(
+                        db::GridPoint(layer.idx, trackIdx, rightCP), db::GridPoint(layer.idx, trackIdx, end));
+                }
+            }
+        }
     }
-    return wirePatches;
-}
-
-void PostMazeRoute::run() {
-    if (localNet.getName() != "net181936") {
-        removeTrackSwitchWithVio();
-    }
-    extendMinAreaWires();
 }

@@ -184,35 +184,25 @@ int lefMacroCB(lefrCallbackType_e c, lefiMacro* macro, lefiUserData ud) {
 
 	lefMacro.clsMacro->setClass(macro->macroClass());
 	lefMacro.clsMacro->setName(macro->name());
-	lefMacro.clsMacro->setSiteName(macro->siteName());
-	lefMacro.clsSite = macro->siteName();
 	if (macro->hasOrigin()) {
 		lefMacro.clsMacro->setOrigin(macro->originX(), macro->originY());
 	}
 	lefMacro.clsMacro->setSize(macro->sizeX(), macro->sizeY());
-	lefMacro.clsSize[X] = macro->sizeX();
-	lefMacro.clsSize[Y] = macro->sizeY();
-	lefMacro.clsSymmetry.clear();
 	if (macro->hasXSymmetry()) {
 		lefMacro.clsMacro->setXSymmetry();
-		lefMacro.clsSymmetry.append("X");
 	} // end if 
 	if (macro->hasYSymmetry()) {
 		lefMacro.clsMacro->setYSymmetry();
-		lefMacro.clsSymmetry.append(" Y");
 	} // end if 
 	if (macro->has90Symmetry()) {
 		lefMacro.clsMacro->set90Symmetry();
-		lefMacro.clsSymmetry.append(" R90");
-	} // end if 
-	if (lefMacro.clsSymmetry.empty()) {
-		lefMacro.clsSymmetry = INVALID_LEF_NAME;
 	} // end if 
 	return 0;
 } // end function
 
 // -----------------------------------------------------------------------------
 int numWarningsInoutPins = 0;
+int numWarningsTristatePins = 0;
 
 int lefPinCB(lefrCallbackType_e c, lefiPin* pin, lefiUserData ud) {
 	typedef boost::polygon::polygon_90_with_holes_data<double> Polygon90;
@@ -225,7 +215,7 @@ int lefPinCB(lefrCallbackType_e c, lefiPin* pin, lefiUserData ud) {
 	LefMacroDscp & lefMacro = dscp.clsLefMacroDscps.back();
 	lefMacro.clsPins.resize(lefMacro.clsPins.size() + 1);
 	LefPinDscp & lefPin = lefMacro.clsPins.back();
-
+	
 	lefPin.clsPinName = pin->name();
 	lefPin.clsPinDirection = pin->direction();
 	lefPin.clsPinUse = pin->use();
@@ -238,8 +228,19 @@ int lefPinCB(lefrCallbackType_e c, lefiPin* pin, lefiUserData ud) {
 		//  	<< lefPin.clsPinName << ". Pin direction is replaced to " << lefPin.clsPinDirection
 		//  	<< " [LEF CONTROL PARSER]\n";
 		numWarningsInoutPins++;
-	} // end if 
+	} // end if
 	// END WORKORUND to support inout data pin
+
+	// Mateus @ 190108 -- WORKORUND to support tristate pin
+	if (lefPin.clsPinDirection.compare("OUTPUT TRISTATE") == 0) {
+		lefPin.clsPinDirection = "OUTPUT";
+		if (numWarningsTristatePins < 10)
+			std::cout << "WARNING: Ignoring TRISTATE OUTPUT statement in pin "
+			<< lefPin.clsPinName << ". Pin direction is replaced to " << lefPin.clsPinDirection
+			<< " [LEF CONTROL PARSER]\n";
+		numWarningsTristatePins++;
+	} // end if
+	// END WORKORUND to support tristate data pin
 
 	lefPin.clsHasPort = pin->numPorts() > 0;
 
@@ -358,6 +359,7 @@ int lefUnits(lefrCallbackType_e c, lefiUnits* units, lefiUserData ud) {
 // -----------------------------------------------------------------------------
 
 int lefObstructionCB(lefrCallbackType_e c, lefiObstruction* obs, lefiUserData ud) {
+	//std::cout << "Reading lef obstacles\n";
 	LefDscp & dscp = getLibraryFromUserData(ud);
 	LefMacroDscp & lefMacro = dscp.clsLefMacroDscps.back();
 
@@ -378,6 +380,10 @@ int lefObstructionCB(lefrCallbackType_e c, lefiObstruction* obs, lefiUserData ud
 			lefObs.clsBounds.push_back(libRect);
 		} // end if-else 
 	} // end for 
+	
+//	if (lefMacro.clsMacroName == "bufx2" || lefMacro.clsMacroName == "BUFX2") {
+//		std::cout << "#Obstacles" << lefMacro.clsObs.size() << "\n";
+//	}
 	return 0;
 } // end method 
 
@@ -442,8 +448,17 @@ int lefLayerCB(lefrCallbackType_e c, lefiLayer* layer, lefiUserData ud) {
 		}
 	}
 	if (layer->lefiLayer::hasArea()) {
-        lefLayer->setArea(layer->area());
-    }
+		lefLayer->setArea(layer->area());
+	}
+	for (unsigned i = 0; static_cast<int>(i) < layer->lefiLayer::numProps(); ++i) {
+		if (layer->lefiLayer::propIsNumber(i)) {
+			lefLayer->addNumProp(layer->lefiLayer::propName(i), layer->lefiLayer::propNumber(i), layer->lefiLayer::propValue(i), layer->lefiLayer::propType(i));
+		} else if (layer->lefiLayer::propIsString(i)) {
+			lefLayer->addProp(layer->lefiLayer::propName(i), layer->lefiLayer::propValue(i), layer->lefiLayer::propType(i));
+		} else {
+			printf("ERROR: LEF layer prop %u is neither number nor string!\n", i);
+		}
+	}
 	return 0;
 } // end method 
 

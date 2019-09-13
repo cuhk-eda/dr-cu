@@ -21,8 +21,8 @@
 // check www.openeda.org for details.
 // 
 //  $Author: dell $
-//  $Revision: #2 $
-//  $Date: 2014/06/05 $
+//  $Revision: #1 $
+//  $Date: 2017/06/06 $
 //  $State:  $
 // *****************************************************************************
 // *****************************************************************************
@@ -200,11 +200,17 @@ extern void defwSetViaCbk (defwVoidCbkFnType);
 extern void defwSetUnusedCallbacks (defwVoidCbkFnType func);
 
 /* Routine to set the message logging routine for errors */
-typedef void (*DEFI_LOG_FUNCTION) (const char*);
+#ifndef DEFI_LOG_FUNCTION
+    typedef void (*DEFI_LOG_FUNCTION) (const char*);
+#endif
+
 extern void defwSetLogFunction ( DEFI_LOG_FUNCTION );
 
 /* Routine to set the message logging routine for warnings */
-typedef void (*DEFI_WARNING_LOG_FUNCTION)(const char*);
+#ifndef DEFI_WARNING_LOG_FUNCTION
+    typedef void (*DEFI_WARNING_LOG_FUNCTION)(const char*);
+#endif
+
 extern void defwSetWarningLogFunction( DEFI_WARNING_LOG_FUNCTION );
 
 END_LEFDEF_PARSER_NAMESPACE

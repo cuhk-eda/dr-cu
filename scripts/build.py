@@ -2,8 +2,8 @@
 
 import argparse, os
 
-all_targets = ['ispd18dr']
-run_files = 'scripts/*.py ispd18eval'
+all_targets = ['ispd19dr']
+run_files = 'scripts/*.py ispd18eval ispd19eval'
 
 def run(command):
     if args.print_commands:
@@ -22,11 +22,12 @@ mode_cmake_options = {
     'release_profile'   : '-DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_FLAGS=-pg',
     'asan'              : '-DCMAKE_CXX_FLAGS=-fsanitize=address',
     'debug_asan'        : '-DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS=-fsanitize=address',
-    'tsan'              : '-DCMAKE_CXX_FLAGS=-fsanitize=thread'
+    'tsan'              : '-DCMAKE_CXX_FLAGS=-fsanitize=thread',
+    'debug_tsan'        : '-DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS=-fsanitize=thread'
 }
 
 # argparse
-parser = argparse.ArgumentParser(description='Build ispd18dr in Linux')
+parser = argparse.ArgumentParser(description='Build ispd19dr in Linux')
 parser.add_argument('-t', '--targets', choices=all_targets, nargs='+')
 parser.add_argument('-o', '--mode', choices=mode_cmake_options.keys())
 parser.add_argument('-c', '--cmake_options', default='')

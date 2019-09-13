@@ -1,6 +1,5 @@
 #include "PostRoute.h"
 #include "PinTapConnector.h"
-#include <boost/functional/hash.hpp>
 
 void PostRoute::getPinTapPoints() {
     dbNet.postOrderVisitGridTopo([&](std::shared_ptr<db::GridSteiner> node) {
@@ -40,79 +39,25 @@ db::RouteStatus PostRoute::connectPins() {
                 db::routeStat.increment(db::RouteStage::POST, db::MiscRouteEvent::LINK_PIN_VIO, 1);
             }
         }
+        if (pinTapConnector.bestLinkVia.first != -1) {
+            linkViaToPins[tap] = pinTapConnector.bestLinkVia;
+        }
     }
 
-    if (!isSucc(netStatus)) {
+    if (!db::isSucc(netStatus)) {
         printWarnMsg(netStatus, dbNet);
     }
 
-    // merge overlaped links
-    for (const auto &taps : samePinTaps) {
-        for (auto tap1 : taps) {
-            for (auto tap2 : taps) {
-                if (tap1 != tap2 && tap1->layerIdx == tap2->layerIdx) {
-                    mergeLinks(linkToPins[tap1], linkToPins[tap2]);
-                }
-            }
-        }
-    }
     return netStatus;
 }
 
-void PostRoute::mergeLinks(vector<utils::SegmentT<DBU>> &lhs, vector<utils::SegmentT<DBU>> &rhs) {
-    for (auto &seg1 : lhs) {
-        for (int i2 = 0; i2 < rhs.size(); ++i2) {
-            auto &seg2 = rhs[i2];  // make rhs.pop_back() safe
-            for (int dir = 0; dir < 2; ++dir) {
-                if (seg1[dir].range() != 0 || seg2[dir].range() != 0) continue;
-                // both run along 1 - dir
-                if (seg1[dir].low != seg2[dir].low) continue;
-                // overlap in dir
-                auto &segProj1 = seg1[1 - dir];  // projected
-                if (segProj1.low > segProj1.high) {
-                    std::swap(segProj1.low, segProj1.high);
-                }
-                auto &segProj2 = seg2[1 - dir];  // projected
-                if (segProj2.low > segProj2.high) {
-                    std::swap(segProj2.low, segProj2.high);
-                }
-                // merge
-                if (segProj1.low == segProj2.low) {
-                    db::routeStat.increment(db::RouteStage::POST, +db::MiscRouteEvent::LINK_MERGE, 1);
-                    if (segProj1.high == segProj2.high) {
-                        seg2 = rhs.back();
-                        rhs.pop_back();
-                    } else {
-                        if (segProj1.high > segProj2.high) {
-                            // make sure segProj1.high < segProj2.high
-                            std::swap(segProj1, segProj2);
-                        }
-                        segProj2.low = segProj1.high;  // remove the overlap
-                    }
-                } else if (segProj1.high == segProj2.high) {
-                    db::routeStat.increment(db::RouteStage::POST, +db::MiscRouteEvent::LINK_MERGE, 1);
-                    if (segProj1.low == segProj2.low) {
-                        seg2 = rhs.back();
-                        rhs.pop_back();
-                    } else {
-                        if (segProj1.low < segProj2.low) {
-                            // make sure segProj1.low > segProj2.low
-                            std::swap(segProj1, segProj2);
-                        }
-                        segProj2.high = segProj1.low;  // remove the overlap
-                    }
-                }
-            }
-        }
+void PostRoute::getViaTypes() {
+    db::RouteStatus status = db::RouteStatus::SUCC_NORMAL;
+    getPinTapPoints();
+    status = connectPins();
+    if (!db::isSucc(status)) {
+        return;
     }
-}
-
-void PostRoute::getTopo() {
-    vector<vector<vector<utils::BoxT<DBU>>>> pinMetals(dbNet.numOfPins(),
-                                                       vector<vector<utils::BoxT<DBU>>>(database.getLayerNum()));
-    dbNet.viaPinVio = 0;
-    // 1. from gridTopo
-    std::unordered_map<std::shared_ptr<db::GridSteiner>, const db::ViaType *> bestViaTypes;
     dbNet.postOrderVisitGridTopo([&](std::shared_ptr<db::GridSteiner> node) {
         if (node->parent) {
             db::GridEdge edge(*node, *(node->parent));
@@ -134,139 +79,178 @@ void PostRoute::getTopo() {
                         }
                     }
                 }
-                auto bestViaType = getViaType(steinerU, steinerV, pinIdx);
-                bestViaTypes[node] = bestViaType;
-                database.writeDEFVia(dbNet, database.getLoc(edge.u), *bestViaType, edge.u.layerIdx);
+                node->viaType = getViaType(steinerU, steinerV, pinIdx);
+            }
+        }
+    });
+}
+
+void PostRoute::getTopo() {
+    // 1. from gridTopo
+    dbNet.postOrderVisitGridTopo([&](std::shared_ptr<db::GridSteiner> node) {
+        if (node->parent) {
+            db::GridEdge edge(*node, *(node->parent));
+            if (edge.isVia()) {
+                const db::GridPoint &via = edge.lowerGridPoint();
+                database.writeDEFVia(dbNet, database.getLoc(edge.u), *(node->viaType), edge.u.layerIdx);
             } else if (edge.isTrackSegment() || edge.isWrongWaySegment()) {
                 database.writeDEFWireSegment(dbNet, database.getLoc(edge.u), database.getLoc(edge.v), edge.u.layerIdx);
             } else {
                 log() << "Warning in " << __func__ << ": invalid edge type. skip." << std::endl;
             }
         }
+        if (node->extWireSeg) {
+            const auto seg = database.getLoc(*(node->extWireSeg));
+            utils::BoxT<DBU> box(seg.first, seg.second);
+            int layerIdx = node->extWireSeg->u.layerIdx;
+            DBU halfWidth = database.getLayer(layerIdx).width / 2;
+            for (int i = 0; i < 2; ++i) {
+                box[i].low -= halfWidth;
+                box[i].high += halfWidth;
+            }
+            database.writeDEFFillRect(dbNet, box, layerIdx);
+        }
     });
 
-    // update pinMetals according to bestViaTypes
-    std::function<void(std::shared_ptr<db::GridSteiner>, int, int)> updateToChildren =
-        [&](std::shared_ptr<db::GridSteiner> node, int layerIdx, int pinIdx) {
-            for (auto child : node->children) {
-                // edge node-child
-                if (node->layerIdx == layerIdx) {
-                    pinMetals[pinIdx][layerIdx].push_back(getEdgeLayerMetal({*node, *child}, bestViaTypes[child]));
-                    updateToChildren(child, layerIdx, pinIdx);
-                }
-            }
-        };
-    std::function<void(std::shared_ptr<db::GridSteiner>, int, int)> updateToParent =
-        [&](std::shared_ptr<db::GridSteiner> node, int layerIdx, int pinIdx) {
-            if (node->parent && node->layerIdx == layerIdx) {
-                // edge node-parent
-                pinMetals[pinIdx][layerIdx].push_back(getEdgeLayerMetal({*node, *(node->parent)}, bestViaTypes[node]));
-                updateToParent(node->parent, layerIdx, pinIdx);
-            }
-        };
-    dbNet.postOrderVisitGridTopo([&](std::shared_ptr<db::GridSteiner> node) {
+    //  2. fill metal to resolve same-net spacing violations
+    vector<std::tuple<int, std::unordered_set<unsigned>, vector<utils::BoxT<DBU>>>> subTreeMetals;
+    vector<vector<std::unordered_set<unsigned>>> pinSubTrees(
+        dbNet.numOfPins(), vector<std::unordered_set<unsigned>>(database.getLayerNum()));
+    // initialize subTreeMetals and pinSubTrees
+    std::function<void(std::shared_ptr<db::GridSteiner>, const unsigned)> updateSubTreeMetals = [&](std::shared_ptr<
+                                                                                                        db::GridSteiner>
+                                                                                                        node,
+                                                                                                    const unsigned
+                                                                                                        subTreeIdx) {
+        if (node->extWireSeg)
+            std::get<2>(subTreeMetals[subTreeIdx]).push_back(getWireSegmentMetal(*(node->extWireSeg)));
+        const int layerIdx = node->layerIdx;
         if (node->pinIdx >= 0) {
-            updateToChildren(node, node->layerIdx, node->pinIdx);
-            updateToParent(node, node->layerIdx, node->pinIdx);
-        }
-    });
-
-    // 2. from PinTapPoint::linkToPin
-    for (const auto &tap : pinTaps) {
-        for (const auto &link : linkToPins[tap]) {
-            database.writeDEFWireSegment(dbNet, {link.lx(), link.ly()}, {link.hx(), link.hy()}, tap->layerIdx);
-            // for fill rects
-            pinMetals[tap->pinIdx][tap->layerIdx].push_back(PinTapConnector::getLinkMetal(link, tap->layerIdx));
-        }
-    }
-
-    // 3. from extendedWireSegment
-    for (const auto &edge : dbNet.extendedWireSegment) {
-        utils::BoxT<DBU> box(database.getLoc(edge).first, database.getLoc(edge).second);
-        int layerIdx = edge.u.layerIdx;
-        DBU halfWidth = database.getLayer(layerIdx).width / 2;
-        for (int i = 0; i < 2; ++i) {
-            box[i].low -= halfWidth;
-            box[i].high += halfWidth;
-        }
-        database.writeDEFFillRect(dbNet, box, layerIdx);
-    }
-
-    // 3. fill metal to resolve same-net violations
-    // 3.1 around pins (pins, vias, wires, links)
-    for (int pinIdx = 0; pinIdx < dbNet.numOfPins(); ++pinIdx) {
-        for (int layerIdx = 0; layerIdx < database.getLayerNum(); ++layerIdx) {
-            if (!pinMetals[pinIdx][layerIdx].empty()) {
-                for (const auto &ab : dbNet.pinAccessBoxes[pinIdx]) {
-                    if (ab.layerIdx == layerIdx) {
-                        pinMetals[pinIdx][layerIdx].push_back(ab);
-                    }
+            const unsigned pinIdx = static_cast<unsigned>(node->pinIdx);
+            std::get<1>(subTreeMetals[subTreeIdx]).insert(pinIdx);
+            pinSubTrees[pinIdx][layerIdx].insert(subTreeIdx);
+            const std::unordered_map<std::shared_ptr<db::GridSteiner>, vector<utils::SegmentT<DBU>>>::const_iterator
+                &linkIt = linkToPins.find(node);
+            if (linkIt != linkToPins.end()) {
+                for (const utils::SegmentT<DBU> &link : linkIt->second) {
+                    database.writeDEFWireSegment(dbNet, {link.lx(), link.ly()}, {link.hx(), link.hy()}, layerIdx);
+                    std::get<2>(subTreeMetals[subTreeIdx]).push_back(PinTapConnector::getLinkMetal(link, layerIdx));
                 }
-                MetalFiller metalFiller(pinMetals[pinIdx][layerIdx], layerIdx, true);
-                metalFiller.run();
-                for (auto &rect : metalFiller.fillMetals) {
-                    database.writeDEFFillRect(dbNet, rect, layerIdx);
+            }
+            const std::unordered_map<std::shared_ptr<db::GridSteiner>,
+                                     std::pair<int, utils::PointT<DBU>>>::const_iterator &linkViaIt =
+                linkViaToPins.find(node);
+            if (linkViaIt != linkViaToPins.end()) {
+                const int viaLayerIdx = linkViaIt->second.first;
+                const utils::PointT<DBU> &viaLoc = linkViaIt->second.second;
+                const db::ViaType &bestViaType = database.getBestViaTypeForFixed(viaLoc, viaLayerIdx, dbNet.idx);
+                database.writeDEFVia(dbNet, viaLoc, bestViaType, viaLayerIdx);
+                const utils::BoxT<DBU> &box = viaLayerIdx == layerIdx ? bestViaType.getShiftedBotMetal(viaLoc)
+                                                                      : bestViaType.getShiftedTopMetal(viaLoc);
+                std::get<2>(subTreeMetals[subTreeIdx]).push_back(box);
+                const int pinLayerIdx = viaLayerIdx == layerIdx ? viaLayerIdx + 1 : viaLayerIdx;
+                const utils::BoxT<DBU> &pinBox = viaLayerIdx == layerIdx ? bestViaType.getShiftedTopMetal(viaLoc)
+                                                                         : bestViaType.getShiftedBotMetal(viaLoc);
+                if (pinSubTrees[pinIdx][pinLayerIdx].empty()) {
+                    subTreeMetals.emplace_back(
+                        pinLayerIdx, std::unordered_set<unsigned>({pinIdx}), vector<utils::BoxT<DBU>>(1, pinBox));
+                    pinSubTrees[pinIdx][pinLayerIdx].insert(subTreeMetals.size() - 1);
+                } else {
+                    std::get<1>(subTreeMetals[*pinSubTrees[pinIdx][pinLayerIdx].begin()]).insert(pinIdx);
+                    std::get<2>(subTreeMetals[*pinSubTrees[pinIdx][pinLayerIdx].begin()]).push_back(pinBox);
                 }
             }
         }
+        for (auto child : node->children) {
+            std::get<2>(subTreeMetals[subTreeIdx]).push_back(getEdgeLayerMetal({*node, *child}, child->viaType));
+            if (layerIdx == child->layerIdx)
+                updateSubTreeMetals(child, subTreeIdx);
+            else {
+                subTreeMetals.emplace_back(
+                    child->layerIdx,
+                    std::unordered_set<unsigned>(),
+                    vector<utils::BoxT<DBU>>(1, getEdgeLayerMetal({*child, *node}, child->viaType)));
+                updateSubTreeMetals(child, subTreeMetals.size() - 1);
+            }
+        }
+    };
+    for (const std::shared_ptr<db::GridSteiner> &tree : dbNet.gridTopo) {
+        subTreeMetals.emplace_back(tree->layerIdx, std::unordered_set<unsigned>(), vector<utils::BoxT<DBU>>());
+        updateSubTreeMetals(tree, subTreeMetals.size() - 1);
     }
-    // 3.2 bot-top vias
+    // merge subTreeMetals according to pinSubTrees
+    for (unsigned pinIdx = 0; pinIdx != dbNet.numOfPins(); ++pinIdx) {
+        for (unsigned layerIdx = 0; layerIdx != database.getLayerNum(); ++layerIdx) {
+            std::unordered_set<unsigned> &pinSubTree = pinSubTrees[pinIdx][layerIdx];
+            if (pinSubTree.size() <= 1) continue;
+            const unsigned dstSubTreeIdx = *pinSubTree.begin();
+            std::for_each(++pinSubTree.begin(), pinSubTree.end(), [&](const unsigned srcSubTreeIdx) {
+                for (const unsigned srcPinIdx : std::get<1>(subTreeMetals[srcSubTreeIdx])) {
+                    if (srcPinIdx == pinIdx) continue;
+                    pinSubTrees[srcPinIdx][layerIdx].erase(srcSubTreeIdx);
+                    pinSubTrees[srcPinIdx][layerIdx].insert(dstSubTreeIdx);
+                }
+                std::get<1>(subTreeMetals[dstSubTreeIdx])
+                    .insert(std::get<1>(subTreeMetals[srcSubTreeIdx]).begin(),
+                            std::get<1>(subTreeMetals[srcSubTreeIdx]).end());
+                std::get<1>(subTreeMetals[srcSubTreeIdx]).clear();
+                std::move(std::get<2>(subTreeMetals[srcSubTreeIdx]).begin(),
+                          std::get<2>(subTreeMetals[srcSubTreeIdx]).end(),
+                          std::back_inserter(std::get<2>(subTreeMetals[dstSubTreeIdx])));
+                std::get<2>(subTreeMetals[srcSubTreeIdx]).clear();
+            });
+            pinSubTree = {dstSubTreeIdx};
+        }
+    }
+    // add pinAccessBoxes to subTreeMetals
+    for (unsigned pinIdx = 0; pinIdx != dbNet.numOfPins(); ++pinIdx) {
+        for (const db::BoxOnLayer &ab : dbNet.pinAccessBoxes[pinIdx]) {
+            for (const unsigned subTreeIdx : pinSubTrees[pinIdx][ab.layerIdx])
+                std::get<2>(subTreeMetals[subTreeIdx]).push_back(ab);
+        }
+    }
+    // fill
+    for (const std::tuple<int, std::unordered_set<unsigned>, vector<utils::BoxT<DBU>>> &subTreeMetal : subTreeMetals) {
+        if (std::get<2>(subTreeMetal).empty()) continue;
+        const db::AggrParaRunSpace aggressiveSpacing =
+            std::get<1>(subTreeMetal).empty() ? db::AggrParaRunSpace::DEFAULT : db::AggrParaRunSpace::LARGER_WIDTH;
+        MetalFiller metalFiller(std::get<2>(subTreeMetal), std::get<0>(subTreeMetal), aggressiveSpacing);
+        metalFiller.run();
+        for (const utils::BoxT<DBU> &rect : metalFiller.fillMetals)
+            database.writeDEFFillRect(dbNet, rect, std::get<0>(subTreeMetal));
+        if (!metalFiller.fillMetals.empty()) {
+            db::routeStat.increment(db::RouteStage::POST, db::MiscRouteEvent::FILL_SAME_NET_SPACE, 1);
+        }
+    }
+
+    // 3. corner spacing hack
     dbNet.postOrderVisitGridTopo([&](std::shared_ptr<db::GridSteiner> node) {
-        for (auto c : node->children) {
-            for (auto cc : c->children) {
-                for (auto ccc : cc->children) {
-                    if (node->layerIdx != c->layerIdx && c->layerIdx == cc->layerIdx && cc->layerIdx != ccc->layerIdx &&
-                        node->layerIdx != ccc->layerIdx) {
-                        vector<utils::BoxT<DBU>> twoViaMetals;
-                        twoViaMetals.push_back(getEdgeLayerMetal({*c, *node}, bestViaTypes[c]));
-                        twoViaMetals.push_back(getWireSegmentMetal({*c, *cc}));
-                        twoViaMetals.push_back(getEdgeLayerMetal({*cc, *ccc}, bestViaTypes[ccc]));
-                        MetalFiller metalFiller(twoViaMetals, c->layerIdx);
-                        metalFiller.run();
-                        if (!metalFiller.fillMetals.empty()) {
-                            db::routeStat.increment(
-                                db::RouteStage::POST, db::MiscRouteEvent::FILL_SAME_NET_BOT_TOP_VIAS, 1);
-                        }
-                        for (auto &rect : metalFiller.fillMetals) {
-                            database.writeDEFFillRect(dbNet, rect, c->layerIdx);
-                        }
-                    }
-                }
+        const db::MetalLayer &layer = database.getLayer(node->layerIdx);
+        if (!layer.hasCornerSpace() || layer.isWireViaMultiTrack) return;
+        for (std::shared_ptr<db::GridSteiner> c : node->children) {
+            if (c->pinIdx >= 0 || node->layerIdx != c->layerIdx || c->children.size() != 1) continue;
+            std::shared_ptr<db::GridSteiner> cc = c->children[0];
+            if (c->layerIdx != cc->layerIdx || node->trackIdx == c->trackIdx && c->trackIdx == cc->trackIdx) continue;
+            utils::BoxT<DBU> rect(database.getLoc(*c));
+            DBU halfWidth = layer.width / 2;
+            if (node->crossPointIdx < c->crossPointIdx || c->crossPointIdx > cc->crossPointIdx) {
+                rect[1 - layer.direction].low += halfWidth;
+                rect[1 - layer.direction].high += halfWidth + 1;
+            } else if (node->crossPointIdx > c->crossPointIdx || c->crossPointIdx < cc->crossPointIdx) {
+                rect[1 - layer.direction].low -= halfWidth + 1;
+                rect[1 - layer.direction].high -= halfWidth;
+            } else {
+                continue;
             }
+            rect[layer.direction].low -= halfWidth;
+            rect[layer.direction].high += halfWidth;
+            db::routeStat.increment(db::RouteStage::POST, db::MiscRouteEvent::REMOVE_CORNER, 1);
+            database.writeDEFFillRect(dbNet, rect, c->layerIdx);
         }
     });
-    // 3.3 via-wire
-    // via1 - via2 - wire1 - wire2
-    dbNet.postOrderVisitGridTopo([&](std::shared_ptr<db::GridSteiner> node) {
-        for (auto c : node->children) {
-            for (auto cc : c->children) {
-                for (auto ccc : cc->children) {
-                    vector<utils::BoxT<DBU>> viaWireMetals;
-                    if (node->layerIdx != c->layerIdx && c->layerIdx == cc->layerIdx && cc->layerIdx == ccc->layerIdx && c->trackIdx != ccc->trackIdx) {
-                        viaWireMetals.push_back(getEdgeLayerMetal({*c, *node}, bestViaTypes[c]));
-                        viaWireMetals.push_back(getWireSegmentMetal({*c, *cc}));
-                        viaWireMetals.push_back(getWireSegmentMetal({*cc, *ccc}));
-                    }
-                    else if (ccc->layerIdx != cc->layerIdx && cc->layerIdx == c->layerIdx && c->layerIdx == node->layerIdx && cc->trackIdx != node->trackIdx) {
-                        viaWireMetals.push_back(getEdgeLayerMetal({*cc, *ccc}, bestViaTypes[ccc]));
-                        viaWireMetals.push_back(getWireSegmentMetal({*cc, *c}));
-                        viaWireMetals.push_back(getWireSegmentMetal({*c, *node}));
-                    } else {
-                        continue;
-                    }
-                    MetalFiller metalFiller(viaWireMetals, c->layerIdx);
-                    metalFiller.run();
-                    if (!metalFiller.fillMetals.empty()) {
-                        db::routeStat.increment(
-                            db::RouteStage::POST, db::MiscRouteEvent::FILL_SAME_NET_VIA_WIRE, 1);
-                    }
-                    for (auto &rect : metalFiller.fillMetals) {
-                        database.writeDEFFillRect(dbNet, rect, c->layerIdx);
-                    }
-                }
-            }
-        }
-    });
+
+    // 4. compress memory
+    dbNet.defWireSegments.shrink_to_fit();
 }
 
 utils::BoxT<DBU> PostRoute::getEdgeLayerMetal(const db::GridEdge &edge, const db::ViaType *viaType) {
@@ -299,37 +283,40 @@ void PostRoute::processAllSameLayerSameNetBoxes(const vector<db::BoxOnLayer> &pi
     }
 }
 
-const db::ViaType *PostRoute::getViaType(std::shared_ptr<db::GridSteiner> u, std::shared_ptr<db::GridSteiner> v, int pinIdx) {
+const db::ViaType *PostRoute::getViaType(std::shared_ptr<db::GridSteiner> u,
+                                         std::shared_ptr<db::GridSteiner> v,
+                                         int pinIdx) {
     const auto &cutLayer = database.getCutLayer(min(u->layerIdx, v->layerIdx));
     db::GridPoint via = (u->layerIdx <= v->layerIdx) ? *u : *v;
-    if (pinIdx == -1) {
-        return getViaType(via);  // prune by layer?
-    }
     auto botDir = database.getLayerDir(via.layerIdx);
     auto topDir = database.getLayerDir(via.layerIdx + 1);
     auto viaLoc = database.getLoc(via);
-    static vector<utils::SegmentT<DBU>> emptylinkToPin;
+    vector<utils::SegmentT<DBU>> emptylinkToPin;
     auto it = linkToPins.find(u);
     const vector<utils::SegmentT<DBU>> &linkToPin = (it != linkToPins.end()) ? it->second : emptylinkToPin;
 
     // define getViaTypeScore
     auto getViaTypeScore = [&](const db::ViaType &viaType) {
-        int viaWireVio = database.getViaUsageOnWires(viaType.viaBotWire, via, dbNet.idx) +
-                         database.getViaUsageOnWires(viaType.viaTopWire, database.getUpper(via), dbNet.idx);
-        utils::BoxT<DBU> viaRegion = viaType.bot;
-        viaRegion.ShiftBy(viaLoc);
-        DBU sameNetOvlpArea = 0;
-        processAllSameLayerSameNetBoxes(
-            dbNet.pinAccessBoxes[pinIdx], u->layerIdx, linkToPin, [&](const utils::BoxT<DBU> &box) {
-                auto ovlp = viaRegion.IntersectWith(box);
-                if (ovlp.IsValid()) {
-                    sameNetOvlpArea += ovlp.area();
-                }
-            });
-        return make_tuple(viaWireVio,
-                          database.getViaSpaceVio(via, viaType, dbNet.idx),
-                          viaRegion.area() - sameNetOvlpArea,
-                          viaType.getDefaultScore(botDir, topDir));
+        int estNumVios = database.getViaFixedVio(via, viaType, dbNet.idx);
+        DBU outSideArea = 0;
+        estNumVios += database.getViaUsageOnWiresPost(via, dbNet.idx, &viaType);
+        if (considerViaViaVio) {
+            estNumVios += database.getViaUsageOnVias(via, dbNet.idx, &viaType);
+        }
+        if (pinIdx >= 0) {
+            utils::BoxT<DBU> viaRegion = viaType.bot;
+            viaRegion.ShiftBy(viaLoc);
+            DBU ovlpArea = 0;
+            processAllSameLayerSameNetBoxes(
+                dbNet.pinAccessBoxes[pinIdx], u->layerIdx, linkToPin, [&](const utils::BoxT<DBU> &box) {
+                    auto ovlp = viaRegion.IntersectWith(box);
+                    if (ovlp.IsValid()) {
+                        ovlpArea += ovlp.area();
+                    }
+                });
+            outSideArea = viaRegion.area() - ovlpArea;
+        }
+        return make_tuple(estNumVios, !viaType.hasMultiCut, outSideArea, viaType.getDefaultScore(botDir, topDir));
     };
 
     // select the best via type
@@ -341,45 +328,6 @@ const db::ViaType *PostRoute::getViaType(std::shared_ptr<db::GridSteiner> u, std
             bestViaType = &viaType;
             bestScore = score;
         }
-    }
-    if (std::get<0>(bestScore) > 0) {
-        db::routeStat.increment(db::RouteStage::POST, db::MiscRouteEvent::VIA_WIRE_VIO_TAP, 1);
-        ++dbNet.viaPinVio;
-    }
-    if (std::get<1>(bestScore) > 0) {
-        db::routeStat.increment(db::RouteStage::POST, db::MiscRouteEvent::VIA_PIN_VIO_TAP, 1);
-        ++dbNet.viaPinVio;
-    }
-    return bestViaType;
-}
-
-const db::ViaType *PostRoute::getViaType(const db::GridPoint &via) {
-    const auto &cutLayer = database.getCutLayer(via.layerIdx);
-    auto botDir = database.getLayerDir(via.layerIdx);
-    auto topDir = database.getLayerDir(via.layerIdx + 1);
-    auto viaLoc = database.getLoc(via);
-
-    // define getViaTypeScore
-    auto getViaTypeScore = [&](const db::ViaType &viaType) {
-        return make_tuple(database.getViaSpaceVio(via, viaType, dbNet.idx), viaType.getDefaultScore(botDir, topDir));
-    };
-
-    // select the best via type
-    const db::ViaType *bestViaType = &cutLayer.defaultViaType();  // last tie break by preferring defaultViaType
-    auto bestScore = getViaTypeScore(cutLayer.defaultViaType());
-    for (const auto &viaType : cutLayer.allViaTypes) {
-        if (std::get<0>(bestScore) == 0) {  // prune
-            return bestViaType;
-        }
-        auto score = getViaTypeScore(viaType);
-        if (score < bestScore) {
-            bestViaType = &viaType;
-            bestScore = score;
-        }
-    }
-    if (std::get<0>(bestScore) != 0) {
-        db::routeStat.increment(db::RouteStage::POST, db::MiscRouteEvent::VIA_PIN_VIO_OTHERS, 1);
-        ++dbNet.viaPinVio;
     }
     return bestViaType;
 }
@@ -408,7 +356,7 @@ void MetalFiller::run() {
 
 void MetalFiller::getFillRect(utils::BoxT<DBU> targetMetal) {
     for (int dir = 0; dir < 2; ++dir) {
-        DBU space = database.getLayer(layerIdx).getSpace(targetMetal, dir, aggressiveSpacing);
+        DBU space = database.getLayer(layerIdx).getSpace(targetMetal, dir, aggrSpace);
         auto extendLow = targetMetal;  // left: lower end of dir
         auto extendHigh = targetMetal;
         extendLow[dir] = {targetMetal[dir].low - space, targetMetal[dir].low};

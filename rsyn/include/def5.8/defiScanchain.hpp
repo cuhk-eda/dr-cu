@@ -20,9 +20,9 @@
 // For updates, support, or to become part of the LEF/DEF Community,
 // check www.openeda.org for details.
 // 
-//  $Author: icftcm $
+//  $Author: dell $
 //  $Revision: #1 $
-//  $Date: 2014/02/10 $
+//  $Date: 2017/06/06 $
 //  $State:  $
 // *****************************************************************************
 // *****************************************************************************
@@ -35,8 +35,13 @@
 
 BEGIN_LEFDEF_PARSER_NAMESPACE
 
+class defrData;
+
 class defiOrdered {
 public:
+  defiOrdered(defrData *data);
+  ~defiOrdered();
+
   void addOrdered(const char* inst);
   void addIn(const char* pin);
   void addOut(const char* pin);
@@ -59,6 +64,8 @@ protected:
   char** in_;
   char** out_;
   int*   bits_;                       // 5.4.1
+    
+  defrData *defData;
 };
 
 
@@ -66,7 +73,7 @@ protected:
 //
 class defiScanchain {
 public:
-  defiScanchain();
+  defiScanchain(defrData *data);
   void Init();
 
   void Destroy();
@@ -168,6 +175,7 @@ protected:
   char* partName_;      // 5.4.1
   int   maxBits_;       // 5.4.1
 
+  defrData *defData;
 };
 
 

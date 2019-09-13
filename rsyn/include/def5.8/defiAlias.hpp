@@ -1,6 +1,6 @@
 // *****************************************************************************
 // *****************************************************************************
-// Copyright 2012 - 2013, Cadence Design Systems
+// Copyright 2013 - 2014, Cadence Design Systems
 // 
 // This  file  is  part  of  the  Cadence  LEF/DEF  Open   Source
 // Distribution,  Product Version 5.8. 
@@ -27,72 +27,33 @@
 // *****************************************************************************
 // *****************************************************************************
 
-#ifndef lefiUnits_h
-#define lefiUnits_h
+#ifndef defiALIAS_h
+#define defiALIAS_h
 
-#include <stdio.h>
-#include "lefiKRDefs.hpp"
+#include "defiKRDefs.hpp"
 
 BEGIN_LEFDEF_PARSER_NAMESPACE
 
-class lefiUnits {
+class defAliasIterator;
+class defrData;
+
+class defiAlias_itr {
 public:
-  lefiUnits();
+  defiAlias_itr(defrData *defData = 0);
   void Init();
 
   void Destroy();
-  ~lefiUnits();
+  ~defiAlias_itr();
 
-  void setDatabase(const char* name, double num);
-  void clear();
-  void setTime(double num);
-  void setCapacitance(double num);
-  void setResistance(double num);
-  void setPower(double num);
-  void setCurrent(double num);
-  void setVoltage(double num);
-  void setFrequency(double num);
-
-  int hasDatabase() const;
-  int hasCapacitance()const;
-  int hasResistance() const;
-  int hasTime() const;
-  int hasPower() const;
-  int hasCurrent() const;
-  int hasVoltage() const;
-  int hasFrequency() const;
-
-  const char* databaseName() const;
-  double databaseNumber() const;
-  double capacitance() const;
-  double resistance() const;
-  double time() const;
-  double power() const;
-  double current() const;
-  double voltage() const;
-  double frequency() const;
-
-  // Debug print
-  void print(FILE* f) const ;
+  int Next();
+  const char* Key();
+  const char* Data();
+  int Marked();
 
 protected:
-  int hasDatabase_;
-  int hasCapacitance_;
-  int hasResistance_;
-  int hasTime_;
-  int hasPower_;
-  int hasCurrent_;
-  int hasVoltage_;
-  int hasFrequency_;
-  char* databaseName_;
-  double databaseNumber_;
-  double capacitance_;
-  double resistance_;
-  double power_;
-  double time_;
-  double current_;
-  double voltage_;
-  double frequency_;
+  defAliasIterator   *iterator;
+  int first;
+  defrData *defData;
 };
 
 END_LEFDEF_PARSER_NAMESPACE

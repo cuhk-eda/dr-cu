@@ -19,20 +19,24 @@ void GridGraphBuilder::run() {
     }
 
     // 2. Add guide-pin connection
+    pinToOriVertex.resize(localNet.numOfPins());
     for (unsigned p = 0; p < localNet.numOfPins(); p++) {
         for (auto ga : localNet.pinGuideConn[p]) {
-            const db::GridBoxOnLayer &accessBox = localNet.gridPinAccessBoxes[p][ga.second];
-            const db::GridBoxOnLayer &guideBox = localNet.gridRouteGuides[ga.first];
+            const auto &accessBoxes = localNet.gridPinAccessBoxes[p];
+            int g = ga.second;  // guideIdx
+            const auto &accessBox = accessBoxes[g];
+            const auto &guideBox = localNet.gridRouteGuides[ga.first];
 
             if (accessBox.layerIdx != guideBox.layerIdx) continue;
 
             utils::IntervalT<int> cpInterval = accessBox.crossPointRange.IntersectWith(guideBox.crossPointRange);
             utils::IntervalT<int> trackInterval = accessBox.trackRange.IntersectWith(guideBox.trackRange);
+            bool fakePin = (accessBoxes.size() > 1 && (g + 1) == accessBoxes.size() && accessBox.layerIdx != accessBoxes[g - 1].layerIdx);
 
             for (int t = trackInterval.low; t <= trackInterval.high; t++) {
                 for (int c = cpInterval.low; c <= cpInterval.high; c++) {
                     int u = guideToVertex(ga.first, t, c);
-                    updatePinVertex(p, u);
+                    updatePinVertex(p, u, fakePin);
                 }
             }
         }
@@ -54,6 +58,7 @@ void GridGraphBuilder::run() {
 
     setMinAreaFlags();
     addOutofPinPenalty();
+    fixDisconnectedPin();
 }
 
 void GridGraphBuilder::addWrongWayConn() {
@@ -85,7 +90,7 @@ void GridGraphBuilder::addAdjGuideWrongWayConn() {
 
                 auto cpRange = box1.crossPointRange.IntersectWith(box2.crossPointRange);
 
-                int numWrongWayPoint = (cpRange.range() + 1) * db::setting.wrongWayPointDensity;
+                int numWrongWayPoint = (cpRange.range() + 1) * db::rrrIterSetting.wrongWayPointDensity;
 
                 DBU pitch = database.getLayer(box1.layerIdx).pitch;
                 db::CostT wrongWayCost = db::setting.wrongWayPenaltyCoeff * pitch;
@@ -112,15 +117,22 @@ void GridGraphBuilder::addAdjGuideWrongWayConn() {
 }
 
 void GridGraphBuilder::addPinWrongWayConn() {
-    const int extraRange = 4;
+    const int extraRange = 2;
     for (unsigned p = 0; p < localNet.numOfPins(); p++) {
         for (auto ga : localNet.pinGuideConn[p]) {
             db::GridBoxOnLayer accessBox = localNet.gridPinAccessBoxes[p][ga.second];
             const db::GridBoxOnLayer &guideBox = localNet.gridRouteGuides[ga.first];
 
-            if (accessBox.layerIdx != guideBox.layerIdx) continue;
+            if ((accessBox.layerIdx + 1) == guideBox.layerIdx) {
+                accessBox = database.getUpper(accessBox);
+            }
+            else if ((accessBox.layerIdx - 1) == guideBox.layerIdx) {
+                accessBox = database.getLower(accessBox);
+            }
+            else if (accessBox.layerIdx != guideBox.layerIdx) {
+                continue;
+            }
 
-            const auto &layer = database.getLayer(accessBox.layerIdx);
             accessBox.trackRange.low -= extraRange;
             accessBox.trackRange.high += extraRange;
             accessBox.crossPointRange.low -= extraRange;
@@ -151,7 +163,7 @@ void GridGraphBuilder::addRegWrongWayConn(int guideIdx) {
     const auto &cpRange = box.crossPointRange;
     const auto &trackRange = box.trackRange;
 
-    int numWrongWayPoint = (cpRange.range() + 1) * db::setting.wrongWayPointDensity;
+    int numWrongWayPoint = (cpRange.range() + 1) * db::rrrIterSetting.wrongWayPointDensity;
 
     int pitch = database.getLayer(box.layerIdx).pitch;
     db::CostT wrongWayCost = db::setting.wrongWayPenaltyCoeff * pitch;

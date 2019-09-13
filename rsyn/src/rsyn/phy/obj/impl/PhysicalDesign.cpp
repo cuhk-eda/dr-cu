@@ -171,7 +171,7 @@ void PhysicalDesign::loadDesign(const DefDscp & design) {
 		addPhysicalNet(net);
 
 	data->clsPhysicalSpecialNets.reserve(design.clsSpecialNets.size());
-	for (const DefSpecialNetDscp & specialNet : design.clsSpecialNets)
+	for (const DefNetDscp & specialNet : design.clsSpecialNets)
 		addPhysicalSpecialNet(specialNet);
 
 	data->clsPhysicalTracks.reserve(design.clsTracks.size());
@@ -182,10 +182,10 @@ void PhysicalDesign::loadDesign(const DefDscp & design) {
 	// only to keep coherence in the design;
 	data->clsNumElements[PHYSICAL_PORT] = data->clsDesign.getNumInstances(Rsyn::PORT);
 
-	std::cout << "Loaded Design\n";
-	std::cout << "\tName: " << data->clsDesign.getName() << "\n";
-	std::cout << "\t#Moveable Insts: " << getNumElements(PhysicalType::PHYSICAL_MOVABLE) << "\n";
-	std::cout << "\t#Fixed Insts: " << getNumElements(PhysicalType::PHYSICAL_FIXED) << "\n";
+	data->clsPhysicalGCell.reserve(design.clsGcellGrids.size());
+	for (const DefGcellGridDscp & gcell : design.clsGcellGrids) {
+		addPhysicalGCell(gcell);
+	} // end for
 } // end method 
 
 // -----------------------------------------------------------------------------
@@ -556,11 +556,10 @@ Rsyn::LibraryCell PhysicalDesign::addPhysicalLibraryCell(const LefMacroDscp& mac
 	} // end if
 	Rsyn::PhysicalLibraryCellData &phlCell = data->clsPhysicalLibraryCells[lCell];
     phlCell.clsMacro = macro.clsMacro;
-	double2 size = macro.clsSize;
+	double2 size(macro.clsMacro->sizeX(), macro.clsMacro->sizeY());
 	size.scale(static_cast<double> (getDatabaseUnits(LIBRARY_DBU)));
 	phlCell.clsSize[X] = static_cast<DBU> (std::round(size[X]));
 	phlCell.clsSize[Y] = static_cast<DBU> (std::round(size[Y]));
-	phlCell.clsSymmetry = Rsyn::getPhysicalSymmetry(macro.clsSymmetry);
 	// Initializing obstacles in the physical library cell
 	phlCell.clsObs.reserve(macro.clsObs.size());
 	for (const LefObsDscp &libObs : macro.clsObs) {
@@ -581,6 +580,10 @@ Rsyn::LibraryCell PhysicalDesign::addPhysicalLibraryCell(const LefMacroDscp& mac
 		} // end for
 
 		phlCell.clsObs.push_back(phObs);
+//		if (macro.clsMacroName == "bufx2" || macro.clsMacroName == "BUFX2") {
+//			std::cout << "----#Obstacles: " << macro.clsObs.size() << "\n";
+//			std::cout << "" << macro.clsObs[0].clsBounds.size() << "\n";
+//		}
 		if (data->clsEnableMergeRectangles && libObs.clsBounds.size() > 1) {
 			std::vector<Bounds> bounds;
 			mergeBounds(scaledBounds, bounds);
@@ -741,8 +744,9 @@ void PhysicalDesign::addPhysicalCell(Rsyn::Instance cell, const DefComponentDscp
 	physicalCell.clsInstance = cell;
 	Rsyn::InstanceTag tag = data->clsDesign.getTag(cell);
 	tag.setFixed(component.clsIsFixed);
-    const bool isBlock = !strcmp(phLibCell.clsMacro->macroClass(), "BLOCK");
-	tag.setMacroBlock(isBlock);
+	const bool isBlock = !strcmp(phLibCell.clsMacro->macroClass(), "BLOCK");
+	const bool isRing = !strcmp(phLibCell.clsMacro->macroClass(), "RING");
+	tag.setMacroBlock(isBlock || isRing);
 	if (component.clsIsFixed) {
 		if (phLibCell.clsLayerBoundIndex > -1) {
 			PhysicalObstacle obs = phLibCell.clsObs[phLibCell.clsLayerBoundIndex];
@@ -899,55 +903,13 @@ void PhysicalDesign::addPhysicalNet(const DefNetDscp & netDscp) {
 
 // -----------------------------------------------------------------------------
 
-void PhysicalDesign::addPhysicalSpecialNet(const DefSpecialNetDscp & specialNet) {
-	std::cout << "TODO: Handle special nets.\n";
-	//	data->clsPhysicalSpecialNets.push_back(PhysicalSpecialNet(new PhysicalSpecialNetData()));
-	//	Rsyn::PhysicalSpecialNet phSpecialNet = data->clsPhysicalSpecialNets.back();
-	//	phSpecialNet->id = data->clsPhysicalSpecialNets.size() - 1;
-	//	data->clsMapPhysicalSpecialNets[specialNet.clsName] = data->clsPhysicalSpecialNets.size() - 1;
-	//	for (const DefWireDscp & wire : specialNet.clsWires) {
-	//		phSpecialNet->clsWires.push_back(PhysicalWire(new PhysicalWireData()));
-	//		PhysicalWire phWire = phSpecialNet->clsWires.back();
-	//		addSpecialWireNet(wire, phWire, true);
-	//	} // end for
+void PhysicalDesign::addPhysicalSpecialNet(const DefNetDscp & specialNet) {
+	data->clsPhysicalSpecialNets.push_back(PhysicalSpecialNet(new PhysicalSpecialNetData()));
+	Rsyn::PhysicalSpecialNet phSpecialNet = data->clsPhysicalSpecialNets.back();
+	phSpecialNet->id = data->clsPhysicalSpecialNets.size() - 1;
+	data->clsMapPhysicalSpecialNets[specialNet.clsName] = data->clsPhysicalSpecialNets.size() - 1;
+	phSpecialNet->clsNet = specialNet;
 } // end method 
-
-//// -----------------------------------------------------------------------------
-//
-//void PhysicalDesign::addSpecialWireNet(const DefWireDscp & wire, PhysicalWire phWire, const bool isSpecialNet) {
-//	phWire->clsWireSegments.reserve(wire.clsWireSegments.size());
-//	for (const DefWireSegmentDscp & segmentDscp : wire.clsWireSegments) {
-//		phWire->clsWireSegments.push_back(PhysicalWireSegment(new PhysicalWireSegmentData()));
-//		PhysicalWireSegment phWireSegment = phWire->clsWireSegments.back();
-//		addWireSegment(segmentDscp, phWireSegment, isSpecialNet);
-//	} // end for
-//} // end method
-//
-//// -----------------------------------------------------------------------------
-//
-//void PhysicalDesign::addWireSegment(const DefWireSegmentDscp & segmentDscp, PhysicalWireSegment phWireSegment, const bool isSpecialNet) {
-//	phWireSegment->clsPhysicalLayer = getPhysicalLayerByName(segmentDscp.clsLayerName);
-//	phWireSegment->clsRoutingPoints.reserve(segmentDscp.clsRoutingPoints.size());
-//	if (isSpecialNet)
-//		phWireSegment->clsRoutedWidth = segmentDscp.clsRoutedWidth;
-//
-//	for (const DefRoutingPointDscp & routingPoint : segmentDscp.clsRoutingPoints) {
-//		phWireSegment->clsRoutingPoints.push_back(PhysicalRoutingPoint(new PhysicalRoutingPointData()));
-//		PhysicalRoutingPoint phPoint = phWireSegment->clsRoutingPoints.back();
-//		phPoint->clsExtension = routingPoint.clsExtension;
-//		phPoint->clsPos = routingPoint.clsPos;
-//		phPoint->clsOrientation = getPhysicalOrientation(routingPoint.clsOrientation);
-//		if (routingPoint.clsHasVia)
-//			phPoint->clsVia = getPhysicalViaByName(routingPoint.clsViaName);
-//
-//		if (routingPoint.clsHasRectangle) {
-//			phPoint->clsRectangle = routingPoint.clsRect;
-//			phPoint->clsHasRectangle = true;
-//		} // end if
-//	} // end for
-//
-//	postProcessWireSegment(phWireSegment);
-//} // end method
 
 // -----------------------------------------------------------------------------
 
@@ -1022,6 +984,11 @@ void PhysicalDesign::initRoutingGrid() {
 
 // -----------------------------------------------------------------------------
 
+void PhysicalDesign::addPhysicalGCell(const DefGcellGridDscp &gcell) {
+} // end method
+
+// -----------------------------------------------------------------------------
+
 void PhysicalDesign::addPhysicalDesignVia(const DefViaDscp & via) {
 
 	std::unordered_map<std::string, std::size_t>::iterator it = data->clsMapPhysicalVias.find(via.clsName);
@@ -1043,14 +1010,16 @@ void PhysicalDesign::addPhysicalDesignVia(const DefViaDscp & via) {
 
 	if (via.clsHasViaRule) {
 		Rsyn::PhysicalViaRuleBase phViaRuleBase = getPhysicalViaRuleBaseByName(via.clsViaRuleName);
+		phVia->clsHasViaRule = true;
+		phVia->clsType = VIA_RULE_TYPE;
 		phVia->clsViaRuleData = phViaRuleBase.data;
 		phVia->clsCutSize[X] = via.clsXCutSize;
 		phVia->clsCutSize[Y] = via.clsYCutSize;
 		phVia->clsSpacing[X] = via.clsXCutSpacing;
 		phVia->clsSpacing[Y] = via.clsYCutSpacing;
 		phVia->clsEnclosure[BOTTOM_VIA_LEVEL][X] = via.clsXBottomEnclosure;
-		phVia->clsEnclosure[TOP_VIA_LEVEL][Y] = via.clsYBottomEnclosure;
-		phVia->clsEnclosure[BOTTOM_VIA_LEVEL][X] = via.clsXTopEnclosure;
+		phVia->clsEnclosure[BOTTOM_VIA_LEVEL][Y] = via.clsYBottomEnclosure;
+		phVia->clsEnclosure[TOP_VIA_LEVEL][X] = via.clsXTopEnclosure;
 		phVia->clsEnclosure[TOP_VIA_LEVEL][Y] = via.clsYTopEnclosure;
 
 		Rsyn::PhysicalLayer bottom = getPhysicalLayerByName(via.clsBottomLayer);
@@ -1073,11 +1042,17 @@ void PhysicalDesign::addPhysicalDesignVia(const DefViaDscp & via) {
 		if (via.clsHasOffset) {
 			phVia->clsHasOffset = true;
 			phVia->clsOffset[BOTTOM_VIA_LEVEL][X] = via.clsXBottomOffset;
-			phVia->clsOffset[TOP_VIA_LEVEL][Y] = via.clsYBottomOffset;
-			phVia->clsOffset[BOTTOM_VIA_LEVEL][X] = via.clsXTopOffset;
+			phVia->clsOffset[BOTTOM_VIA_LEVEL][Y] = via.clsYBottomOffset;
+			phVia->clsOffset[TOP_VIA_LEVEL][X] = via.clsXTopOffset;
 			phVia->clsOffset[TOP_VIA_LEVEL][Y] = via.clsYTopOffset;
 		} // end if 
+		if (via.clsHasPattern) {
+			phVia->clsHasPattern = true;
+			phVia->clsPattern = via.clsPattern;
+		} // end if 
 	} else {
+		phVia->clsHasViaRule = false;
+		phVia->clsType = VIA_GEOMETRY_TYPE;
 		std::vector<std::tuple<int, PhysicalLayerData *>> layers;
 		for (const std::pair < std::string, std::deque < DefViaGeometryDscp>> &geoPair : via.clsGeometries) {
 			const std::string & layerName = geoPair.first;

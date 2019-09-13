@@ -400,8 +400,7 @@ bool PhysicalRouting::isValid() const {
 		} // end if
 	} // end for
 
-	return !clsWires.empty();
-	
+	return !(clsWires.empty() && clsVias.empty());
 } // end method
 
 // -----------------------------------------------------------------------------

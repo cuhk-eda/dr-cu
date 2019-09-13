@@ -5,47 +5,57 @@
 
 namespace db {
 
-class NetRouteResult {
+class NetBase {
 public:
-    vector<std::shared_ptr<GridSteiner>> gridTopo;  // major topology on grid
-    vector<GridEdge> extendedWireSegment;  // wire segment extended for safisfying min area
-    vector<DefWireDscp> topo;
-    int minAreaVio = 0;
-    int minAreaShadowedVio = 0;
-    int viaPinVio = 0;
+    ~NetBase();
 
-    void postOrderVisitGridTopo(const std::function<void(std::shared_ptr<GridSteiner>)>& visit) const;
-    void printResult(ostream& os) const;
-    void clearPostRouteResult();
-    void clearResult();
-};
-
-class Net : public NetRouteResult {
-public:
     int idx;
     Rsyn::Net rsynNet;
     const std::string& getName() const { return rsynNet.getName(); }
 
+    // pins
     vector<Rsyn::Pin> rsynPins;
     vector<vector<BoxOnLayer>> pinAccessBoxes;  // (pinIdx, accessBoxIdx) -> BoxOnLayer
-    int numOfPins() const { return pinAccessBoxes.size(); }
+    unsigned numOfPins() const noexcept { return pinAccessBoxes.size(); }
+    BoxOnLayer getMaxAccessBox(int pinIdx) const;
 
+    // route guides
     vector<BoxOnLayer> routeGuides;
     vector<GridBoxOnLayer> gridRouteGuides;
 
-    Net(int i, Rsyn::Net net, RsynService& rsynService);
-    void initPinAccessBoxes(Rsyn::Pin rsynPin, RsynService& rsynService, vector<BoxOnLayer>& accessBoxes, const DBU libDBU);
+    // on-grid route result
+    vector<std::shared_ptr<GridSteiner>> gridTopo;
+    void postOrderVisitGridTopo(const std::function<void(std::shared_ptr<GridSteiner>)>& visit) const;
+
+    // print
+    void printBasics(ostream& os) const;
+    void printResult(ostream& os) const;
     void print(ostream& os = std::cout) const {
         printBasics(os);
         printResult(os);
     }
-    void printBasics(ostream& os) const;
+};
 
+class Net : public NetBase {
+public:
+    Net(int i, Rsyn::Net net, RsynService& rsynService);
+
+    // more route guide information
+    vector<int> routeGuideVios;
+    RTrees routeGuideRTrees;
+
+    // for initialization
+    void initPinAccessBoxes(Rsyn::Pin rsynPin, RsynService& rsynService, vector<BoxOnLayer>& accessBoxes, const DBU libDBU);
     static void getPinAccessBoxes(Rsyn::PhysicalPort phPort, vector<BoxOnLayer>& accessBoxes);
     static void getPinAccessBoxes(Rsyn::PhysicalLibraryPin phLibPin,
                                   Rsyn::PhysicalCell phCell,
                                   vector<BoxOnLayer>& accessBoxes,
                                   const DBUxy& origin);
+
+    // final route result
+    vector<DefWireSegmentDscp> defWireSegments;
+    void clearPostRouteResult();
+    void clearResult();
 };
 
 class NetList {

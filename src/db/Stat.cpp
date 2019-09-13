@@ -5,8 +5,6 @@ namespace db {
 
 RouteStat routeStat;
 
-int rrrIter;
-
 RouteStatus operator&(const RouteStatus& lhs, const RouteStatus& rhs) {
     for (auto status : {lhs, rhs}) {
         if (!isSucc(status)) {
@@ -27,32 +25,25 @@ RouteStatus& operator&=(RouteStatus& lhs, const RouteStatus& rhs) {
 }
 
 std::unordered_map<int, std::string> descriptions = {
-    {(+db::RouteStatus::SUCC_DETACHED_PIN_FIXED)._to_integral(),
-     "has pin detached from route guides, fix by expanding route guides"},
-    {(+db::RouteStatus::SUCC_ONE_PIN)._to_integral(), "has only one pin, skip"},
-    {(+db::RouteStatus::SUCC_CONN_EXT_PIN)._to_integral(),
-     "has unconnected pin due to access box inflation, fix by add short wire"},
     {(+db::RouteStatus::FAIL_PIN_OUT_OF_GRID)._to_integral(), "has pin not on grid, skip"},
     {(+db::RouteStatus::FAIL_DETACHED_GUIDE)._to_integral(), "has route guide detached from others, skip"},
     {(+db::RouteStatus::FAIL_DETACHED_PIN)._to_integral(),
      "has pin detached from route guides, cannot fix by expanding route guides"},
     {(+db::RouteStatus::FAIL_CONN_EXT_PIN)._to_integral(),
-     "has unconnected pin due to access box inflation, cannot fix by add short wire"},
+     "has unconnected pin due to access box inflation, cannot fix by add linking wire"},
     {(+db::RouteStatus::FAIL_DISCONNECTED_GRID_GRAPH)._to_integral(), "has disconnected grid graph, skip"}};
 
 std::mutex printWarnMsgMutex;
 
 void printWarnMsg(RouteStatus status, const Net& net) {
-    if (setting.dbVerbose < +db::VerboseLevelT::MIDDLE) {
-        return;
-    }
-    if (status == +RouteStatus::SUCC_NORMAL || status == +RouteStatus::SUCC_ONE_PIN) {
+    if (setting.dbVerbose < +db::VerboseLevelT::MIDDLE || isSucc(status)) {
         return;
     }
     printWarnMsgMutex.lock();
     static std::unordered_map<int, int> counts;
     int& count = counts[status._to_integral()];
     if (count >= db::setting.maxNumWarnForEachRouteStatus) {
+        printWarnMsgMutex.unlock();
         return;
     }
     std::string desc;
@@ -61,11 +52,6 @@ void printWarnMsg(RouteStatus status, const Net& net) {
         desc = " (" + it->second + ")";
     }
     log() << "Warning: Net " << net.getName() << " gets " << status._to_string() << desc << std::endl;
-    // static unordered_set<int> printedNets;
-    // if (printedNets.find(net.idx) == printedNets.end()) {
-    //     printedNets.insert(net.idx);
-    //     net.print();
-    // }
     ++count;
     if (count == db::setting.maxNumWarnForEachRouteStatus) {
         log() << "More warnings on " << status._to_string() << " will be suppressed" << std::endl;

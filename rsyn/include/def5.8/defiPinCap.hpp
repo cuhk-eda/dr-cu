@@ -20,9 +20,9 @@
 // For updates, support, or to become part of the LEF/DEF Community,
 // check www.openeda.org for details.
 // 
-//  $Author: icftcm $
+//  $Author: dell $
 //  $Revision: #1 $
-//  $Date: 2014/02/10 $
+//  $Date: 2017/06/06 $
 //  $State:  $
 // *****************************************************************************
 // *****************************************************************************
@@ -36,6 +36,8 @@
 #include <stdio.h>
 
 BEGIN_LEFDEF_PARSER_NAMESPACE
+
+class defrData;
 
 class defiPinCap {
 public:
@@ -57,7 +59,7 @@ protected:
 // 5.5
 class defiPinAntennaModel {
 public:
-  defiPinAntennaModel();
+  defiPinAntennaModel(defrData *data);
   void Init();
 
   ~defiPinAntennaModel();
@@ -118,11 +120,13 @@ protected:
   int APinMaxCutCarAllocated_;
   int* APinMaxCutCar_;                   // 5.4 AntennaPinMaxCutCar
   char** APinMaxCutCarLayer_;            // 5.4 Layer
+
+  defrData *defData;
 };
 
 class defiPinPort {                      // 5.7
 public:
-  defiPinPort();
+  defiPinPort(defrData *data);
   void Init();
 
   ~defiPinPort();
@@ -198,11 +202,13 @@ protected:
   char   placeType_;
   int    x_, y_;
   char   orient_;
+
+  defrData *defData;
 };
 
 class defiPin {
 public:
-  defiPin();
+  defiPin(defrData *data);
   void Init();
 
   ~defiPin();
@@ -413,6 +419,8 @@ protected:
   int groundSensLength_;                 // 5.6
   char hasGroundSens_;                   // 5.6
   char* groundSens_;                     // 5.6
+
+  defrData *defData;
 };
 
 END_LEFDEF_PARSER_NAMESPACE

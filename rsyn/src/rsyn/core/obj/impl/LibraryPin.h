@@ -112,7 +112,7 @@ LibraryPin::isBidirectional() const {
 // -----------------------------------------------------------------------------
 
 inline
-PinUse
+Use
 LibraryPin::getUse() const {
 	return data->pinUse;
 } // end method

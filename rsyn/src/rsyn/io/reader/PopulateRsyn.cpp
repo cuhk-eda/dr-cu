@@ -353,6 +353,25 @@ void PopulateRsyn::populateRsyn(
 
 		Rsyn::Net rsynNet = top.createNet(net.clsName);
 
+		const std::string use = net.clsUse;
+		if (use == "ANALOG") {
+			rsynNet.setUse(Rsyn::ANALOG);
+		} else if (use == "CLOCK") {
+			rsynNet.setUse(Rsyn::CLOCK);
+		} else if (use == "GROUND") {
+			rsynNet.setUse(Rsyn::GROUND);
+		} else if (use == "POWER") {
+			rsynNet.setUse(Rsyn::POWER);
+		} else if (use == "RESET") {
+			rsynNet.setUse(Rsyn::RESET);
+		} else if (use == "SCAN") {
+			rsynNet.setUse(Rsyn::SCAN);
+		} else if (use == "SIGNAL") {
+			rsynNet.setUse(Rsyn::SIGNAL);
+		} else if (use == "TIEOFF") {
+			rsynNet.setUse(Rsyn::TIEOFF);
+		} // end if
+			
 		for (const DefNetConnection &connection : net.clsConnections) {
 
 			if (connection.clsComponentName == "PIN") {
@@ -367,6 +386,71 @@ void PopulateRsyn::populateRsyn(
 
 				Rsyn::Pin rsynPin = rsynCell.getInnerPin();
 				rsynPin.connect(rsynNet);
+			} else {
+				Rsyn::Cell rsynCell = rsynDesign.findCellByName(connection.clsComponentName);
+				if (!rsynCell) {
+					std::cout << "[ERROR] Cell '"
+						<< connection.clsComponentName << "' not found.\n";
+					exit(1);
+				} // end if
+
+				Rsyn::Pin rsynPin = rsynCell.getPinByName(connection.clsPinName);
+				rsynPin.connect(rsynNet);
+			} // end else
+		} // end for
+	} // end for
+	
+	for (const DefNetDscp &net : defDscp.clsSpecialNets) {
+		if (net.clsName == "") {
+			std::cout << "[ERROR] Empty net name.\n";
+			for (unsigned i = 0; i < net.clsConnections.size(); i++) {
+				std::cout << "Connection: " << net.clsConnections[i].clsComponentName << ":" << net.clsConnections[i].clsPinName << "\n";
+			} // end for
+			exit(1);
+		} // end if
+
+		Rsyn::Net rsynNet = top.createNet(net.clsName);
+		
+		const std::string use = net.clsUse;
+		if (use == "ANALOG") {
+			rsynNet.setUse(Rsyn::ANALOG);
+		} else if (use == "CLOCK") {
+			rsynNet.setUse(Rsyn::CLOCK);
+		} else if (use == "GROUND") {
+			rsynNet.setUse(Rsyn::GROUND);
+		} else if (use == "POWER") {
+			rsynNet.setUse(Rsyn::POWER);
+		} else if (use == "RESET") {
+			rsynNet.setUse(Rsyn::RESET);
+		} else if (use == "SCAN") {
+			rsynNet.setUse(Rsyn::SCAN);
+		} else if (use == "SIGNAL") {
+			rsynNet.setUse(Rsyn::SIGNAL);
+		} else if (use == "TIEOFF") {
+			rsynNet.setUse(Rsyn::TIEOFF);
+		} // end if
+				
+		for (const DefNetConnection &connection : net.clsConnections) {
+			if (connection.clsComponentName == "PIN") {
+				Rsyn::Port rsynCell =
+					rsynDesign.findPortByName(connection.clsPinName);
+
+				if (!rsynCell) {
+					std::cout << "[ERROR] The primary input/ouput port '"
+						<< connection.clsPinName << "' not found.\n";
+					exit(1);
+				} // end if
+
+				Rsyn::Pin rsynPin = rsynCell.getInnerPin();
+				rsynPin.connect(rsynNet);
+			} else if (connection.clsComponentName == "*") {
+				for (Rsyn::Instance inst: rsynDesign.getTopModule().allInstances()) {
+					Rsyn::Pin rsynPin = inst.getPinByName(connection.clsPinName);
+					if (!rsynPin) {
+						continue;
+					} // end if
+					rsynPin.connect(rsynNet);
+				} // end for
 			} else {
 				Rsyn::Cell rsynCell = rsynDesign.findCellByName(connection.clsComponentName);
 				if (!rsynCell) {

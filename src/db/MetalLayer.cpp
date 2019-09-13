@@ -16,17 +16,19 @@ MetalLayer::MetalLayer(Rsyn::PhysicalLayer rsynLayer, Rsyn::PhysicalTracks rsynT
     // Rsyn::PhysicalLayer (LEF)
     lefiLayer* layer = rsynLayer.getLayer();
     name = layer->name();
-    direction = !strcmp(layer->direction(), "HORIZONTAL") ? Y : X;
+    direction = strcmp(layer->direction(), "HORIZONTAL") ? X : Y;
+    assert((rsynTrack.getDirection() == Rsyn::TRACK_HORIZONTAL) == (direction == Y));
     idx = rsynLayer.getRelativeIndex();
     width = static_cast<DBU>(std::round(layer->width() * libDBU));
     minWidth = static_cast<DBU>(std::round(layer->minwidth() * libDBU));
+    widthForSuffOvlp = std::ceil(minWidth * 0.7071);
+    shrinkForSuffOvlp = std::max<DBU>(0, std::ceil(widthForSuffOvlp - width * 0.5));
     minArea = static_cast<DBU>(std::round(layer->area() * libDBU * libDBU));
     minLenRaw = minArea / width - width;
     // default spacing
     const int numSpaceTable = layer->numSpacingTable();
     if (!numSpaceTable) {
-        log() << "Warning in " << __func__ << ": For " << name << ", no run spacing table..."
-              << std::endl;
+        log() << "Warning in " << __func__ << ": For " << name << ", no run spacing table..." << std::endl;
     } else {
         for (int iSpaceTable = 0; iSpaceTable < numSpaceTable; ++iSpaceTable) {
             if (!layer->spacingTable(iSpaceTable)->isParallel()) {
@@ -49,15 +51,16 @@ MetalLayer::MetalLayer(Rsyn::PhysicalLayer rsynLayer, Rsyn::PhysicalTracks rsynT
                     parallelWidth[iWidth] = static_cast<DBU>(std::round(parallel->width(iWidth) * libDBU));
                     parallelWidthSpace[iWidth].resize(std::max(1, numLength), 0);
                     for (int iLength = 0; iLength < numLength; ++iLength) {
-                        parallelWidthSpace[iWidth][iLength] = static_cast<DBU>(std::round(parallel->widthSpacing(iWidth, iLength) * libDBU));
+                        parallelWidthSpace[iWidth][iLength] =
+                            static_cast<DBU>(std::round(parallel->widthSpacing(iWidth, iLength) * libDBU));
                     }
                 }
-                defaultSpace = getSpace(width);
-                aggressiveSpace = (parallelWidthSpace.size() > 1) ? parallelWidthSpace[1][0] : defaultSpace;
+                defaultSpace = getParaRunSpace(width);
+                paraRunSpaceForLargerWidth = (parallelWidthSpace.size() > 1) ? parallelWidthSpace[1][0] : defaultSpace;
             }
         }
     }
-    // eol spacing
+    //  eol spacing
     if (!layer->hasSpacingNumber()) {
         log() << "Warning in " << __func__ << ": For " << name << ", no spacing rules..." << std::endl;
     } else {
@@ -85,8 +88,45 @@ MetalLayer::MetalLayer(Rsyn::PhysicalLayer rsynLayer, Rsyn::PhysicalTracks rsynT
             }
         }
         if (spaceRules.empty()) {
-            log() << "Warning in " << __func__ << ": For " << name << ", no eol spacing rules..."
-                  << std::endl;
+            log() << "Warning in " << __func__ << ": For " << name << ", no eol spacing rules..." << std::endl;
+        }
+    }
+    fixedMetalQueryMargin = std::max(maxEolSpace, maxEolWithin);
+
+    //  corner spacing
+    const int numProps = layer->numProps();
+    for (unsigned iProp = 0; static_cast<int>(iProp) < numProps; ++iProp) {
+        if (strcmp(layer->propName(iProp), "LEF58_CORNERSPACING")) continue;
+
+        if (hasCornerSpace()) {
+            log() << "Warning in " << __func__ << ": For " << name
+                  << ", multiple corner spacing rules: " << layer->propValue(iProp) << "...\n";
+            continue;
+        }
+
+        std::istringstream iss(layer->propValue(iProp));
+        std::string sBuf("");
+        double fBuf1{0};
+        double fBuf2{0};
+        while (iss) {
+            iss >> sBuf;
+            if (sBuf == "CORNERSPACING" || sBuf == "CONVEXCORNER" || sBuf == ";") continue;
+            if (sBuf == "EXCEPTEOL") {
+                cornerExceptEol = true;
+                iss >> fBuf1;
+                cornerEolWidth = static_cast<DBU>(std::round(fBuf1 * libDBU));
+            } else if (sBuf == "WIDTH") {
+                iss >> fBuf1 >> sBuf >> fBuf2;
+                if (fBuf1) {
+                    cornerWidth.push_back(static_cast<DBU>(std::round(fBuf1 * libDBU)));
+                    cornerWidthSpace.push_back(static_cast<DBU>(std::round(fBuf2 * libDBU)));
+                } else {
+                    cornerWidthSpace[0] = static_cast<DBU>(std::round(fBuf2 * libDBU));
+                }
+            } else {
+                log() << "Warning in " << __func__ << ": For " << name << ", corner spacing not identified: " << sBuf
+                      << "...\n";
+            }
         }
     }
     delete rsynLayer.getLayer();
@@ -101,8 +141,7 @@ MetalLayer::MetalLayer(Rsyn::PhysicalLayer rsynLayer, Rsyn::PhysicalTracks rsynT
     }
 
     // safe margin
-    // TODO: add via margin
-    safeMargin = ceil(((minArea / width) + width) * 1.0 / pitch) * pitch * 2;
+    minAreaMargin = ceil(((minArea / width) + width) * 1.0 / pitch) * pitch * 2;
 
     // Check consistency between LEF and DEF
     check();
@@ -112,12 +151,24 @@ bool MetalLayer::isTrackRangeValid(const utils::IntervalT<int>& trackRange) cons
     return trackRange.low >= 0 && trackRange.high < tracks.size() && trackRange.IsValid();
 }
 
+bool MetalLayer::isTrackRangeWeaklyValid(const utils::IntervalT<int>& trackRange) const {
+    return trackRange.low >= 0 && trackRange.low < tracks.size() && trackRange.high >= 0 &&
+           trackRange.high < tracks.size();
+}
+
 utils::IntervalT<int> MetalLayer::getUpperCrossPointRange(const utils::IntervalT<int>& trackRange) const {
     return {tracks[trackRange.low].upperCPIdx, tracks[trackRange.high].upperCPIdx};
 }
 
 utils::IntervalT<int> MetalLayer::getLowerCrossPointRange(const utils::IntervalT<int>& trackRange) const {
     return {tracks[trackRange.low].lowerCPIdx, tracks[trackRange.high].lowerCPIdx};
+}
+
+utils::IntervalT<int> MetalLayer::getSurroundingTrack(DBU loc) const {
+    // offset by firstTrackLoc(), make it within track range, and round
+    const double floatingTrackIdx =
+        (std::min(std::max(firstTrackLoc(), loc), lastTrackLoc()) - firstTrackLoc()) / static_cast<double>(pitch);
+    return {floor(floatingTrackIdx), ceil(floatingTrackIdx)};
 }
 
 utils::IntervalT<int> MetalLayer::rangeSearchTrack(const utils::IntervalT<DBU>& locRange, bool includeBound) const {
@@ -134,8 +185,8 @@ utils::IntervalT<int> MetalLayer::rangeSearchTrack(const utils::IntervalT<DBU>& 
                               floor(double(locRangeCopy.high - firstTrackLoc()) / double(pitch))};
 
     if (!includeBound) {
-        if (tracks[res.high].location == locRange.high) --res.high;
-        if (tracks[res.low].location == locRange.low) ++res.low;
+        if (res.high >= 0 && res.high < numTracks() && tracks[res.high].location == locRange.high) --res.high;
+        if (res.low >= 0 && res.low < numTracks() && tracks[res.low].location == locRange.low) ++res.low;
     }
 
     return res;
@@ -162,19 +213,6 @@ void MetalLayer::initAccCrossPointDistCost() {
 DBU MetalLayer::getCrossPointRangeDistCost(const utils::IntervalT<int>& crossPointRange) const {
     assert(crossPointRange.IsValid());
     return accCrossPointDistCost[crossPointRange.high + 1] - accCrossPointDistCost[crossPointRange.low];
-}
-
-DBU MetalLayer::getTrackSegmentLen(const db::GridEdge& edge) const {
-    assert(edge.isTrackSegment());
-
-    utils::IntervalT<int> crossPointRange;
-    if (edge.u.crossPointIdx < edge.v.crossPointIdx) {
-        crossPointRange.Set(edge.u.crossPointIdx, edge.v.crossPointIdx);
-    } else {
-        crossPointRange.Set(edge.v.crossPointIdx, edge.u.crossPointIdx);
-    }
-
-    return getCrossPointRangeDist(crossPointRange);
 }
 
 DBU MetalLayer::getCrossPointRangeDist(const utils::IntervalT<int>& crossPointRange) const {
@@ -231,102 +269,75 @@ bool MetalLayer::isValid(const GridBoxOnLayer& gridBox) const {
     return isTrackRangeValid(gridBox.trackRange) && isCrossPointRangeValid(gridBox.crossPointRange);
 }
 
-DBU MetalLayer::getSpace(DBU width) const {
-    DBU space = 0;
+DBU MetalLayer::getParaRunSpace(const DBU width, const DBU length) const {
     int iWidth = parallelWidth.size() - 1;  // first smaller than or equal to
-    while (iWidth >= 0 && parallelWidth[iWidth] > width) {
+    while (iWidth > 0 && parallelWidth[iWidth] >= width) {
         --iWidth;
     }
-    if (iWidth < 0) {
-        return 0;  // shouldn't happen
+    if (length == 0) return parallelWidthSpace[iWidth][0];  // fast return
+    int iLength = parallelLength.size() - 1;                // first smaller than or equal to
+    while (iLength > 0 && parallelLength[iLength] >= length) {
+        --iLength;
     }
-    return parallelWidthSpace[iWidth][0];
+    return parallelWidthSpace[iWidth][iLength];
 }
 
-DBU MetalLayer::getSpace(const utils::BoxT<DBU>& targetMetal) const {
-    return getSpace(min(targetMetal.x.range(), targetMetal.y.range()));
+DBU MetalLayer::getParaRunSpace(const utils::BoxT<DBU>& targetMetal, const DBU length) const {
+    return getParaRunSpace(min(targetMetal.width(), targetMetal.height()), length);
 }
 
-DBU MetalLayer::getSpace(const utils::BoxT<DBU>& targetMetal, int dir, bool aggressive) const {
+DBU MetalLayer::getSpace(const utils::BoxT<DBU>& targetMetal, int dir, AggrParaRunSpace aggr) const {
     const DBU range = targetMetal[1 - dir].range();
     DBU space = getEolSpace(range);
     if (!space) {
-        if (range == maxEolWidth) {
-            //  TODO: Should not be EOL violation
-            space = maxEolSpace;
-        } else {
-            space = getSpace(min(targetMetal.width(), targetMetal.height()));
+        // parallel run spacing
+        DBU length = 0;
+        if (aggr == AggrParaRunSpace::LARGER_LENGTH && targetMetal[1 - dir].range() > 100 * pitch) {
+            // hack: assume at least two-pitch parallel run length
+            length = (pitch * 2 + width);
         }
+        space = getParaRunSpace(targetMetal, length);
     }
-    // do not know the width of neighbor, so aggressiveSpace
-    if (aggressive && aggressiveSpace > space) {
-        space = aggressiveSpace;
+    // do not know the width of neighbor, so paraRunSpaceForLargerWidth
+    if (aggr == AggrParaRunSpace::LARGER_WIDTH && paraRunSpaceForLargerWidth > space) {
+        space = paraRunSpaceForLargerWidth;
     }
     return space;
 }
 
-DBU MetalLayer::getEolSpace(const DBU width) const {
-    if (width >= maxEolWidth) {
-        return 0;
-    }
-
-    DBU space = 0;
-    for (const SpaceRule& spaceRule : spaceRules) {
-        if (spaceRule.hasEol /* && !spaceRule.hasPar */ && width < spaceRule.eolWidth) {
-            space = max(space, spaceRule.space);
-        }
-    }
-    return space;
-}
+DBU MetalLayer::getEolSpace(const DBU width) const { return (width < maxEolWidth) ? maxEolSpace : 0; }
 
 bool MetalLayer::isEolViolation(const DBU space, const DBU width, const DBU within) const {
-    for (const SpaceRule& spaceRule : spaceRules) {
-        if (spaceRule.hasEol /* && !spaceRule.hasPar */ && space < spaceRule.space && width < spaceRule.eolWidth && within < spaceRule.eolWithin) {
-            return true;
-        }
+    return (space < maxEolSpace && width < maxEolWidth && within < maxEolWithin);
+}
+
+bool MetalLayer::isEolViolation(const utils::BoxT<DBU>& lhs, const utils::BoxT<DBU>& rhs) const {
+    for (unsigned dim = 0; dim != 2; ++dim) {
+        const DBU space = utils::Dist(lhs[1 - dim], rhs[1 - dim]);
+        const DBU width = min(lhs[dim].range(), rhs[dim].range());
+        const DBU within = utils::Dist(lhs[dim], rhs[dim]);
+        if (isEolViolation(space, width, within)) return true;
     }
     return false;
 }
 
-void MetalLayer::initWireViaRange(const vector<vector<vector<bool>>>& wireVia,
-                                  vector<vector<utils::IntervalT<int>>>& wireInr) {
-    wireInr.clear();
-    const unsigned nCPs = wireVia.size();
-    wireInr.resize(nCPs);
-    for (unsigned i = 0; i != nCPs; ++i) {
-        const unsigned xSize = wireVia[i].size();
-        wireInr[i].resize(xSize);
-        for (unsigned j = 0; j != xSize; ++j) {
-            const int ySize = ((int)wireVia[i][j].size() - 1) / 2;
-            wireInr[i][j].Set(ySize + 1, -ySize - 1);  // for ease of later use
-            for (unsigned k = 0; k != ySize * 2 + 1; ++k) {
-                if (wireVia[i][j][k]) {
-                    wireInr[i][j].Update((int)k - (int)ySize);
-                    break;
-                }
-            }
-            for (int k = ySize * 2; k != -1; --k) {
-                if (wireVia[i][j][k]) {
-                    wireInr[i][j].Update(k - ySize);
-                    break;
-                }
-            }
-        }
+DBU MetalLayer::getCornerSpace(const DBU width) const {
+    if (cornerExceptEol && width < cornerEolWidth) return 0;
+
+    int iWidth = cornerWidth.size() - 1;  // first smaller than or equal to
+    while (iWidth > 0 && cornerWidth[iWidth] >= width) {
+        --iWidth;
     }
+    return cornerWidthSpace[iWidth];
+}
+
+DBU MetalLayer::getCornerSpace(const utils::BoxT<DBU>& targetMetal) const {
+    return getCornerSpace(min(targetMetal.width(), targetMetal.height()));
 }
 
 void MetalLayer::initWireRange() {
-    // 1. wireBotViaRange / wireTopViaRange
-    if (wireBotVia.size()) {
-        MetalLayer::initWireViaRange(wireBotVia, wireBotViaRange);
-    }
-    if (wireTopVia.size()) {
-        MetalLayer::initWireViaRange(wireTopVia, wireTopViaRange);
-    }
-    // 2. wireRange
     const DBU eolSpace = getEolSpace(width);
-    // consider two half width
-    const DBU wireEndPointSpace = eolSpace ? eolSpace + width : defaultSpace + width;
+    const DBU wireEndPointSpace = eolSpace ? eolSpace + width : defaultSpace + width;  // consider two half width
     wireRange.resize(numCrossPoints(), {0, 0});
     int i, j;
     for (int cpIdx = 0; cpIdx < numCrossPoints(); ++cpIdx) {
@@ -368,31 +379,34 @@ ostream& MetalLayer::printDesignRules(ostream& os) const {
 }
 
 ostream& MetalLayer::printViaOccupancyLUT(ostream& os) const {
-    auto getMaxSize2d =
-        [](const vector<vector<utils::IntervalT<int>>>& ranges, size_t& xSize, utils::IntervalT<int>& yRange) {
-            xSize = 0;
-            yRange = {0, 0};
-            for (const auto& rangeCP : ranges) {
-                xSize = max(xSize, rangeCP.size());
-                for (const auto& rangeTrack : rangeCP) {
-                    yRange = yRange.UnionWith(rangeTrack);
-                }
+    auto getMaxSize2d = [](const vector<vector<vector<bool>>>& LUT, size_t& xSize, size_t& ySize) {
+        xSize = 0;
+        ySize = 0;
+        for (const vector<vector<bool>>& cpLUT : LUT) {
+            if (cpLUT.size()) {
+                xSize = max(xSize, cpLUT.size());
+                ySize = max(ySize, cpLUT[0].size());
             }
-        };
+        }
+    };
     auto getMaxSize1d = [](const vector<utils::IntervalT<int>>& ranges, utils::IntervalT<int>& yRange) {
         yRange = {0, 0};
         for (const auto& rangeCP : ranges) {
             yRange = yRange.UnionWith(rangeCP);
         }
     };
-    size_t xSize;
+    size_t xSize, ySize;
     utils::IntervalT<int> yRange;
     getMaxSize1d(wireRange, yRange);
     os << name << ": wire(" << wireRange.size() << ',' << yRange << ')';
-    getMaxSize2d(wireBotViaRange, xSize, yRange);
-    os << ", wireBotVia(" << wireBotViaRange.size() << ',' << xSize << ',' << yRange << ')';
-    getMaxSize2d(wireTopViaRange, xSize, yRange);
-    os << ", wireTopVia(" << wireTopViaRange.size() << ',' << xSize << ',' << yRange << ')';
+    if (wireBotVia.size()) {
+        getMaxSize2d(wireBotVia[0], xSize, ySize);  // TODO: print default
+        os << ", wireBotVia(" << wireBotVia.size() << ',' << xSize << ',' << ySize << ')';
+    }
+    if (wireTopVia.size()) {
+        getMaxSize2d(wireTopVia[0], xSize, ySize);
+        os << ", wireTopVia(" << wireTopVia.size() << ',' << xSize << ',' << ySize << ')';
+    }
     return os;
 }
 
@@ -403,7 +417,8 @@ void MetalLayer::check() const {
         log() << "Warning: In layer " << name << ", width = " << width << " < minWidth = " << minWidth << std::endl;
     }
     if (width > maxEolWidth) {
-        log() << "Warning: In layer " << name << ", width = " << width << " > maxEolWidth = " << maxEolWidth << std::endl;
+        log() << "Warning: In layer " << name << ", width = " << width << " > maxEolWidth = " << maxEolWidth
+              << std::endl;
     }
     if (width + defaultSpace > pitch) {
         log() << "Warning: In layer " << name << ", width + defaultSpace =" << width + defaultSpace

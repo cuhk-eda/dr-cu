@@ -1,6 +1,6 @@
 // *****************************************************************************
 // *****************************************************************************
-// Copyright 2013, Cadence Design Systems
+// Copyright 2013-2016, Cadence Design Systems
 // 
 // This  file  is  part  of  the  Cadence  LEF/DEF  Open   Source
 // Distribution,  Product Version 5.8. 
@@ -20,9 +20,9 @@
 // For updates, support, or to become part of the LEF/DEF Community,
 // check www.openeda.org for details.
 // 
-//  $Author: icftcm $
+//  $Author: dell $
 //  $Revision: #1 $
-//  $Date: 2014/02/10 $
+//  $Date: 2017/06/06 $
 //  $State:  $
 // *****************************************************************************
 // *****************************************************************************
@@ -302,10 +302,10 @@ typedef int (*defrStylesCbkFnType) (defrCallbackType_e, defiStyles *, defiUserDa
 //   return an integer, and some return a pointer to a class.
 //   If you create a new class, then you must create a new function
 //   type here to return that class to the user. 
- 
 
 // The reader initialization.  Must be called before defrRead().
 extern int defrInit ();
+extern int defrInitSession (int startSession = 1);
 
 // obsoleted now.
 extern int defrReset ();
@@ -332,9 +332,11 @@ extern void defrSetCaseSensitivity (int caseSense);
 // you are ignoring.
 extern void defrSetRegisterUnusedCallbacks ();
 extern void defrPrintUnusedCallbacks (FILE* log);
-
 // Obsoleted now.
 extern int  defrReleaseNResetMemory ();
+
+// This function clear session data.
+extern void defrClearSession();
 
 // The main reader function.
 // The file should already be opened.  This requirement allows
@@ -589,12 +591,30 @@ extern int defrLineNumber ();
 extern long long defrLongLineNumber ();
 
 // Routine to set the message logging routine for errors 
-typedef void (*DEFI_LOG_FUNCTION) (const char*);
+#ifndef DEFI_LOG_FUNCTION
+    typedef void (*DEFI_LOG_FUNCTION) (const char*);
+#endif
 extern void defrSetLogFunction(DEFI_LOG_FUNCTION);
 
 // Routine to set the message logging routine for warnings 
-typedef void (*DEFI_WARNING_LOG_FUNCTION) (const char*);
+#ifndef DEFI_WARNING_LOG_FUNCTION
+    typedef void (*DEFI_WARNING_LOG_FUNCTION) (const char*);
+#endif
 extern void defrSetWarningLogFunction(DEFI_WARNING_LOG_FUNCTION);
+
+// Routine to set the message logging routine for errors 
+// Used in re-enterable environment.
+#ifndef DEFI_LOG_FUNCTION
+    typedef void (*DEFI_CONTEXT_LOG_FUNCTION) (defiUserData userData, const char*);
+#endif
+extern void defrSetContextLogFunction(DEFI_CONTEXT_LOG_FUNCTION);
+
+// Routine to set the message logging routine for warnings 
+// Used in re-enterable environment.
+#ifndef DEFI_WARNING_LOG_FUNCTION
+    typedef void (*DEFI_CONTEXT_WARNING_LOG_FUNCTION) (defiUserData userData, const char*);
+#endif
+extern void defrSetContextWarningLogFunction(DEFI_CONTEXT_WARNING_LOG_FUNCTION);
 
 // Routine to set the user defined malloc routine 
 typedef void* (*DEFI_MALLOC_FUNCTION) (size_t);
@@ -612,9 +632,19 @@ extern void defrSetFreeFunction(DEFI_FREE_FUNCTION);
 typedef void (*DEFI_LINE_NUMBER_FUNCTION)  (int);
 extern void defrSetLineNumberFunction(DEFI_LINE_NUMBER_FUNCTION);
 
-// Routine to set the line number of the file that is parsing routine (takes long long
+// Routine to set the line number of the file that is parsing routine (takes long long)
 typedef void (*DEFI_LONG_LINE_NUMBER_FUNCTION)  (long long);
 extern void defrSetLongLineNumberFunction(DEFI_LONG_LINE_NUMBER_FUNCTION);
+
+// Routine to set the line number of the file that is parsing routine (takes int)
+// Used in re-enterable environment.
+typedef void (*DEFI_CONTEXT_LINE_NUMBER_FUNCTION)  (defiUserData userData, int);
+extern void defrSetContextLineNumberFunction(DEFI_CONTEXT_LINE_NUMBER_FUNCTION);
+
+// Routine to set the line number of the file that is parsing routine (takes long long
+// Used in re-enterable environment.
+typedef void (*DEFI_CONTEXT_LONG_LINE_NUMBER_FUNCTION)  (defiUserData userData, long long);
+extern void defrSetContextLongLineNumberFunction(DEFI_CONTEXT_LONG_LINE_NUMBER_FUNCTION);
 
 // Set the number of lines before calling the line function callback routine 
 // Default is 10000 
@@ -682,8 +712,9 @@ extern void defrSetLimitPerMsg(int msgId, int numMsg);
 #define PARSE_ERROR 2   // stop parsing, print an error message 
 
 // Add this alias to the list for the parser     
-extern void defrAddAlias (const char* key, const char* value,
-                                      int marked);
+extern void defrAddAlias (const char* key, 
+                          const char* value,
+                          int marked);
 
 END_LEFDEF_PARSER_NAMESPACE
 

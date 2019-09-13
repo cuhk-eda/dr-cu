@@ -38,23 +38,15 @@ SessionData * Session::sessionData = nullptr;
 // -----------------------------------------------------------------------------
 
 void Session::init() {
-	if (checkInitialized())
-		return;
+	if (checkInitialized()) return;
 
-#ifdef __APPLE__
-    setlocale(LC_ALL, "en_US.UTF-8");
-#else
-    std::setlocale(LC_ALL, "en_US.UTF-8");
-#endif
+	std::setlocale(LC_ALL, "en_US.UTF-8");
 
 	sessionData = new SessionData();
 
 	// TODO: hard coded
 	sessionData->clsInstallationPath = "../../rsyn/install";
 
-	// Register processes.
-	registerProcesses();
-	
 	// Register services
 	registerServices();
 
@@ -98,22 +90,6 @@ Rsyn::PhysicalDesign Session::getPhysicalDesign() {
 	} else {
 		return nullptr;
 	} // end else
-} // end method
-
-// -----------------------------------------------------------------------------
-
-void Session::addPath(const std::string &path, const bool prepend) {
-	if (prepend) {
-		sessionData->clsPaths.push_front(path);
-	} else {
-		sessionData->clsPaths.push_back(path);
-	} // end else
-} // end method
-
-// -----------------------------------------------------------------------------
-
-void Session::removePath(const std::string &path) {
-	sessionData->clsPaths.remove(path);
 } // end method
 
 // -----------------------------------------------------------------------------
@@ -167,24 +143,6 @@ Session::runReader(const std::string &name, const Rsyn::Json &params) {
 		std::unique_ptr<Reader> reader(it->second());
 		reader->load(params);
 	} // end else
-} // end method
-
-// -----------------------------------------------------------------------------
-
-bool
-Session::runProcess(const std::string &name, const Rsyn::Json &params) {
-	bool result = false;
-
-	auto it = sessionData->clsProcesses.find(name);
-	if (it == sessionData->clsProcesses.end()) {
-		std::cout << "ERROR: Process '" << name << "' was not "
-				"registered.\n";
-	} else {
-		std::unique_ptr<Process> opto(it->second());
-		result = opto->run(params);
-	} // end else
-
-	return result;
 } // end method
 
 // -----------------------------------------------------------------------------

@@ -53,7 +53,6 @@ class defrSettings {
 public:
     defrSettings();
 
-    static void reset();
     void init_symbol_table();
 
     defKeywordMap Keyword_set; 
@@ -97,28 +96,46 @@ public:
     int AllowComponentNets;
     char CommentChar;
     int DisPropStrProcess; 
-    FILE* File;
-    char* FileName;
-    defiUserData UserData;
-    int reader_case_sensitive;
+
     int reader_case_sensitive_set;
 
     DEFI_READ_FUNCTION ReadFunction;
     DEFI_LOG_FUNCTION ErrorLogFunction;
     DEFI_WARNING_LOG_FUNCTION WarningLogFunction;
+    DEFI_CONTEXT_LOG_FUNCTION ContextErrorLogFunction;
+    DEFI_CONTEXT_WARNING_LOG_FUNCTION ContextWarningLogFunction;
     DEFI_MAGIC_COMMENT_FOUND_FUNCTION MagicCommentFoundFunction;
     DEFI_MALLOC_FUNCTION MallocFunction;
     DEFI_REALLOC_FUNCTION ReallocFunction;
     DEFI_FREE_FUNCTION FreeFunction;
     DEFI_LINE_NUMBER_FUNCTION LineNumberFunction;
     DEFI_LONG_LINE_NUMBER_FUNCTION LongLineNumberFunction;
+    DEFI_CONTEXT_LINE_NUMBER_FUNCTION ContextLineNumberFunction;
+    DEFI_CONTEXT_LONG_LINE_NUMBER_FUNCTION ContextLongLineNumberFunction;
 
-    int Debug[DEF_DEBUG_IDS]; /* can set from command line for debugging */
     int UnusedCallbacks[CBMAX];
     int MsgLimit[DEF_MSGS];
 };
 
-extern defrSettings *defSettings;
+
+class defrSession {
+public:
+    defrSession();
+
+    char*           FileName;
+    int             reader_case_sensitive;
+    defiUserData    UserData;
+
+    defiPropType    CompProp;
+    defiPropType    CompPinProp;
+    defiPropType    DesignProp;
+    defiPropType    GroupProp;
+    defiPropType    NDefProp;
+    defiPropType    NetProp;
+    defiPropType    RegionProp;
+    defiPropType    RowProp;
+    defiPropType    SNetProp;
+};
 
 END_LEFDEF_PARSER_NAMESPACE
 

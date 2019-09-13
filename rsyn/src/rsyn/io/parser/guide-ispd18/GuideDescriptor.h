@@ -19,12 +19,10 @@
 #include <deque>
 #include "rsyn/util/Bounds.h"
 
-static const std::string INVALID_LAYER_GUIDE = "*<INVALID_LAYER_GUIDE_NAME>*";
-
 class GuideLayerDscp {
 public:
 	Bounds clsLayerGuide;
-	std::string clsLayer = INVALID_LAYER_GUIDE;
+	std::string clsLayer = "";
 	GuideLayerDscp() = default;
 }; // end class 
 
@@ -32,7 +30,7 @@ public:
 
 class GuideNetDscp {
 public:
-	std::string clsNetName = INVALID_LAYER_GUIDE;
+	std::string clsNetName = "";
 	std::deque<GuideLayerDscp> clsLayerDscps;
 	GuideNetDscp() = default;
 }; // end class 
@@ -48,3 +46,4 @@ public:
 // -----------------------------------------------------------------------------
 
 #endif /* ISPD18GUIDEDESCRIPTOR_H */
+

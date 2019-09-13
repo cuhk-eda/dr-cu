@@ -42,7 +42,6 @@ private:
 	void parseDEFFile();
 	void parseGuideFile();
 	void populateDesign();
-	void initializeAuxiliarInfrastructure();
 };
 
 }

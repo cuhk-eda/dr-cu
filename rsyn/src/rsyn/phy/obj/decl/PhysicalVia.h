@@ -65,9 +65,11 @@ public:
 	bool isViaDesign() const;
 	bool isViaRule() const;
 	bool isViaGeometry() const;
+	bool hasViaRule() const;
 	bool hasRowCol() const;
 	bool hasOrigin() const;
-	bool hasoffset() const;
+	bool hasOffset() const;
+	bool hasPattern() const;
 	ViaType getViaType() const;
 	Rsyn::PhysicalViaRuleBase getViaRule() const;
 	DBU getCutSize(const Dimension dim) const;
@@ -77,6 +79,7 @@ public:
 	DBU getOffset(const ViaLevel level, const Dimension dim) const;
 	int getNumRows() const;
 	int getNumCols() const;
+	const std::string & getPattern() const;
 	const std::vector<Rsyn::PhysicalViaGeometry>  & allBottomGeometries() const;
 	const std::vector<Rsyn::PhysicalViaGeometry>  & allCutGeometries() const;
 	const std::vector<Rsyn::PhysicalViaGeometry>  & allTopGeometries() const;

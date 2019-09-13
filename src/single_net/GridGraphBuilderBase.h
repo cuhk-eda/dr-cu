@@ -24,13 +24,16 @@ protected:
     vector<bool> &minAreaFixable;
 
     vector<std::pair<int, int>> intervals;
+    vector<vector<int>> pinToOriVertex;
 
     // Besides wrong-way wire cost itself, discourage out-of-pin taps slightly more
     // Because violations between link and via/wire are out of control now
     double outOfPinWireLengthPenalty = db::setting.weightWrongWayWirelength / db::setting.weightWirelength + 1;
 
-    DBU getPinPointDist(const vector<db::BoxOnLayer> &accessBoxes, const db::GridPoint &grid);
-    void updatePinVertex(int pinIdx, int vertexIdx);
+    // TODO: replace getPinPointCost() by PinTapConnector
+    double getPinPointCost(const vector<db::BoxOnLayer> &accessBoxes, const db::GridPoint &grid);
+    void updatePinVertex(int pinIdx, int vertexIdx, bool fakePin = false);
     void addOutofPinPenalty();
     virtual void setMinAreaFlags() = 0;
+    void fixDisconnectedPin();
 };

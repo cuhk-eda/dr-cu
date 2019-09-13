@@ -15,7 +15,7 @@ void signalHandler(int signum) {
 // -----------------------------------------------------------------------------
 
 void runISPD18Flow(const boost::program_options::variables_map& vm) {
-    // db::setting.makeItSilent();
+    db::setting.makeItSilent();
 
     Rsyn::Session session;
 
@@ -24,18 +24,17 @@ void runISPD18Flow(const boost::program_options::variables_map& vm) {
     std::string lefFile = vm.at("lef").as<std::string>();
     std::string defFile = vm.at("def").as<std::string>();
     std::string guideFile = vm.at("guide").as<std::string>();
-    db::setting.outputFile = vm.at("output").as<std::string>();
     db::setting.numThreads = vm.at("threads").as<int>();
+    db::setting.tat = vm.at("tat").as<int>();
+    db::setting.outputFile = vm.at("output").as<std::string>();
     // optional
     // multi_net
     if (vm.count("multiNetVerbose")) {
-        db::setting.multiNetVerbose = db::VerboseLevelT::_from_string(vm.at("multiNetVerbose").as<std::string>().c_str());
+        db::setting.multiNetVerbose =
+            db::VerboseLevelT::_from_string(vm.at("multiNetVerbose").as<std::string>().c_str());
     }
     if (vm.count("multiNetScheduleSortAll")) {
         db::setting.multiNetScheduleSortAll = vm.at("multiNetScheduleSortAll").as<bool>();
-    }
-    if (vm.count("multiNetScheduleAssignBackRatio")) {
-        db::setting.multiNetScheduleAssignBackRatio = vm.at("multiNetScheduleAssignBackRatio").as<double>();
     }
     if (vm.count("multiNetScheduleReverse")) {
         db::setting.multiNetScheduleReverse = vm.at("multiNetScheduleReverse").as<bool>();
@@ -58,6 +57,9 @@ void runISPD18Flow(const boost::program_options::variables_map& vm) {
     // single_net
     if (vm.count("defaultGuideExpand")) {
         db::setting.defaultGuideExpand = vm.at("defaultGuideExpand").as<int>();
+    }
+    if (vm.count("diffLayerGuideVioThres")) {
+        db::setting.diffLayerGuideVioThres = vm.at("diffLayerGuideVioThres").as<int>();
     }
     if (vm.count("wrongWayPointDensity")) {
         db::setting.wrongWayPointDensity = vm.at("wrongWayPointDensity").as<double>();
@@ -84,6 +86,9 @@ void runISPD18Flow(const boost::program_options::variables_map& vm) {
     if (vm.count("dbNondefaultViaPenaltyCoeff")) {
         db::setting.dbNondefaultViaPenaltyCoeff = vm.at("dbNondefaultViaPenaltyCoeff").as<double>();
     }
+    if (vm.count("dbInitHistUsageForPinAccess")) {
+        db::setting.dbInitHistUsageForPinAccess = vm.at("dbInitHistUsageForPinAccess").as<double>();
+    }
 
     // Read benchmarks
     Rsyn::ISPD2018Reader reader;
@@ -93,19 +98,30 @@ void runISPD18Flow(const boost::program_options::variables_map& vm) {
         {"guideFile", guideFile},
     };
     log() << std::endl;
-    log() << "################################################################" << std::endl;
-    log() << "Start reading benchmarks" << std::endl;
+    if (db::setting.dbVerbose >= +db::VerboseLevelT::HIGH) {
+        log() << "################################################################" << std::endl;
+        log() << "Start reading benchmarks" << std::endl;
+    }
     reader.load(params);
-    log() << "Finish reading benchmarks" << std::endl;
-    log() << "MEM: cur=" << utils::mem_use::get_current() << "MB, peak=" << utils::mem_use::get_peak() << "MB" << std::endl;
-    log() << std::endl;
+    if (db::setting.dbVerbose >= +db::VerboseLevelT::HIGH) {
+        log() << "Finish reading benchmarks" << std::endl;
+        log() << "MEM: cur=" << utils::mem_use::get_current() << "MB, peak=" << utils::mem_use::get_peak() << "MB"
+              << std::endl;
+        log() << std::endl;
+    }
 
     // Route
     database.init();
+    db::setting.adapt();
     Router router;
     router.run();
     database.writeNetTopo(db::setting.outputFile + ".topo");
+    database.clear();
     database.writeDEF(db::setting.outputFile);
+    log() << "Finish writing def" << std::endl;
+    log() << "MEM: cur=" << utils::mem_use::get_current() << "MB, peak=" << utils::mem_use::get_peak() << "MB"
+          << std::endl;
+    log() << std::endl;
 }
 
 // -----------------------------------------------------------------------------
@@ -116,13 +132,14 @@ int main(int argc, char* argv[]) {
 
     Rsyn::Session::init();
 
-    printlog("---------------------------------------------------------------------------");
-    printlog("                      ISPD18 - Detailed Routing Contest                    ");
-    printlog("                              Team number : 07                             ");
-    printlog("          Members : Gengjie Chen, Chak-Wa Pui, Haocheng Li, Jingsong Chen, ");
-    printlog("                    Bentian Jiang, Evangeline F.Y. Young                   ");
-    printlog("          Affiliation : The Chinese University of Hong Kong                ");
-    printlog("---------------------------------------------------------------------------");
+    printlog("------------------------------------------------------------------------------");
+    printlog("                    ISPD 2019 - Detailed Routing Contest                      ");
+    printlog("                             Team number : 15                                 ");
+    printlog("                             Team name: Dr. CU                                ");
+    printlog("        Members: Gengjie Chen, Haocheng Li, Bentian Jiang, Jingsong Chen,     ");
+    printlog("                 Evangeline F.Y. Young                                        ");
+    printlog("        Affiliation: The Chinese University of Hong Kong                      ");
+    printlog("------------------------------------------------------------------------------");
 
     std::cout << std::boolalpha;  // set std::boolalpha to std::cout
 
@@ -135,12 +152,12 @@ int main(int argc, char* argv[]) {
                 ("lef", value<std::string>()->required(), "Input .lef file")
                 ("def", value<std::string>()->required(), "Input .def file.")
                 ("guide", value<std::string>()->required(), "Input .guide file")
-                ("output", value<std::string>()->required(), "Output file name")
                 ("threads", value<int>()->required(), "# of threads")
+                ("tat", value<int>()->required(), "Runtime limit (sec)")
+                ("output", value<std::string>()->required(), "Output file name")
                 // optional
                 ("multiNetVerbose", value<std::string>())
                 ("multiNetScheduleSortAll", value<bool>())
-                ("multiNetScheduleAssignBackRatio", value<double>())
                 ("multiNetScheduleReverse", value<bool>())
                 ("multiNetScheduleSort", value<bool>())
                 ("rrrIters", value<int>())
@@ -148,6 +165,7 @@ int main(int argc, char* argv[]) {
                 ("rrrInitVioCostDiscount", value<double>())
                 ("rrrFadeCoeff", value<double>())
                 ("defaultGuideExpand", value<int>())
+                ("diffLayerGuideVioThres", value<int>())
                 ("wrongWayPointDensity", value<double>())
                 ("wrongWayPenaltyCoeff", value<double>())
                 ("fixOpenBySST", value<bool>())
@@ -156,6 +174,7 @@ int main(int argc, char* argv[]) {
                 ("dbPoorWirePenaltyCoeff", value<double>())
                 ("dbPoorViaPenaltyCoeff", value<double>())
                 ("dbNondefaultViaPenaltyCoeff", value<double>())
+                ("dbInitHistUsageForPinAccess", value<double>())
                 ;
         // clang-format on
         variables_map vm;
@@ -196,4 +215,6 @@ int main(int argc, char* argv[]) {
     printlog("---------------------------------------------------------------------------");
     printlog("                               Terminated...                               ");
     printlog("---------------------------------------------------------------------------");
+
+    return 0;
 }

@@ -26,7 +26,11 @@ public:
     bool IsValid() { return *this != PointT(); }
 
     // Operators
-    T& operator[](unsigned d) {
+    const T& operator[](const unsigned d) const {
+        assert(d == 0 || d == 1);
+        return (d == 0 ? x : y);
+    }
+    T& operator[](const unsigned d) {
         assert(d == 0 || d == 1);
         return (d == 0 ? x : y);
     }
@@ -134,6 +138,8 @@ public:
     }
     bool HasIntersectWith(const IntervalT& rhs) const { return IntersectWith(rhs).IsValid(); }
     bool HasStrictIntersectWith(const IntervalT& rhs) const { return IntersectWith(rhs).IsStrictValid(); }
+    //  Parallel run length between intervals
+    T ParaRunLength(const IntervalT& rhs) const { return IntersectWith(rhs).range(); }
     // contain a val
     bool Contain(int val) const { return val >= low && val <= high; }
     bool StrictlyContain(int val) const { return val > low && val < high; }
@@ -303,6 +309,18 @@ inline T Dist(const BoxT<T>& box1, const BoxT<T>& box2) {
 template <typename T>
 inline double L2Dist(const BoxT<T>& box1, const BoxT<T>& box2) {
     return std::sqrt(std::pow(Dist(box1.x, box2.x), 2) + std::pow(Dist(box1.y, box2.y), 2));
+}
+
+// L-Inf (max) distance between boxes
+template <typename T>
+inline T LInfDist(const BoxT<T>& box1, const BoxT<T>& box2) {
+    return std::max(Dist(box1.x, box2.x), Dist(box1.y, box2.y));
+}
+
+//  Parallel run length between boxes
+template <typename T>
+inline T ParaRunLength(const BoxT<T>& box1, const BoxT<T>& box2) {
+    return std::max(box1.x.ParaRunLength(box2.x), box1.y.ParaRunLength(box2.y));
 }
 
 // Merge/stitch overlapped rectangles along mergeDir

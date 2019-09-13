@@ -1,10 +1,13 @@
+#include <fstream>
+
 #include "LayerList.h"
 
 namespace db {
 
 void LayerList::init() {
     const Rsyn::Session session;
-    Rsyn::PhysicalDesign physicalDesign = static_cast<Rsyn::PhysicalService*>(session.getService("rsyn.physical"))->getPhysicalDesign();
+    Rsyn::PhysicalDesign physicalDesign =
+        static_cast<Rsyn::PhysicalService*>(session.getService("rsyn.physical"))->getPhysicalDesign();
     const DBU libDBU = physicalDesign.getDatabaseUnits(Rsyn::LIBRARY_DBU);
 
     //  Rsyn::PhysicalLayer (LEF)
@@ -106,8 +109,8 @@ void LayerList::init() {
     }
 
     //  init CutLayer::viaAccess
-    initViaAccess();
     initViaForbidRegions();
+    initViaConfLUT();
 }
 
 bool LayerList::isValid(const GridPoint& gridPt) const {
@@ -123,11 +126,11 @@ bool LayerList::isValid(const ViaBox& viaBox) const {
            getUpper(viaBox.lower) == viaBox.upper && getLower(viaBox.upper) == viaBox.lower;  // consistent
 }
 
-BoxOnLayer LayerList::getMetalRectForbidRegion(const BoxOnLayer& metalRect, bool aggressive) const {
+BoxOnLayer LayerList::getMetalRectForbidRegion(const BoxOnLayer& metalRect, AggrParaRunSpace aggr) const {
     const MetalLayer& layer = layers[metalRect.layerIdx];
     DBU margin[2];  // x, y
     for (int dir = 0; dir < 2; ++dir) {
-        margin[dir] = layer.getSpace(metalRect, dir, aggressive);
+        margin[dir] = layer.getSpace(metalRect, dir, aggr);
         margin[dir] += layer.width / 2;
     }
     return {metalRect.layerIdx,
@@ -143,21 +146,6 @@ vector<utils::BoxT<DBU>> LayerList::getAccurateMetalRectForbidRegions(const BoxO
     for (int dir = 0; dir < 2; ++dir) {
         const DBU range = metalRect[1 - dir].range();
         if (range < layer.maxEolWidth) {
-            for (const SpaceRule& spaceRule : layer.spaceRules) {
-                if (spaceRule.hasEol /* && !spaceRule.hasPar */) {
-                    utils::BoxT<DBU> region = metalRect;
-                    region[1 - dir].low -= spaceRule.eolWithin;
-                    region[1 - dir].high += spaceRule.eolWithin;
-                    region[dir].low -= spaceRule.space;
-                    region[dir].high += spaceRule.space;
-                    results.push_back(region);
-                } else if (spaceRule.hasPar) {
-                    log() << "Warning in " << __func__ << ": Metal Layer " << layer.name
-                          << " has ENDOFLINE with PARALLELEDGE... " << std::endl;
-                }
-            }
-        } else if (range == layer.maxEolWidth) {
-            //  TODO: Should not be EOL violation
             utils::BoxT<DBU> region = metalRect;
             region[1 - dir].low -= layer.maxEolWithin;
             region[1 - dir].high += layer.maxEolWithin;
@@ -165,7 +153,7 @@ vector<utils::BoxT<DBU>> LayerList::getAccurateMetalRectForbidRegions(const BoxO
             region[dir].high += layer.maxEolSpace;
             results.push_back(region);
         } else {
-            DBU space = layer.getSpace(min(metalRect.width(), metalRect.height()));
+            DBU space = layer.getParaRunSpace(metalRect);
             utils::BoxT<DBU> region = metalRect;
             region[dir].low -= space;
             region[dir].high += space;
@@ -187,6 +175,30 @@ void LayerList::expandBox(BoxOnLayer& box, int numPitchToExtend, int dir) const 
     DBU margin = layers[box.layerIdx].pitch * numPitchToExtend;
     box[dir].low -= margin;
     box[dir].high += margin;
+}
+
+utils::IntervalT<int> LayerList::getSurroundingTrack(int layerIdx, DBU loc) const {
+    assert(layerIdx >= 0 && layerIdx < layers.size());
+    return layers[layerIdx].getSurroundingTrack(loc);
+}
+
+utils::IntervalT<int> LayerList::getSurroundingCrossPoint(int layerIdx, DBU loc) const {
+    if (layerIdx == 0) {
+        return layers[1].getSurroundingTrack(loc);
+    } else if (layerIdx == layers.size() - 1) {
+        return layers[layerIdx - 1].getSurroundingTrack(loc);
+    } else {
+        const utils::IntervalT<int>& upperTrack = layers[layerIdx + 1].getSurroundingTrack(loc);
+        const utils::IntervalT<int>& lowerTrack = layers[layerIdx - 1].getSurroundingTrack(loc);
+        const utils::IntervalT<int>& fromUpperTrack = layers[layerIdx + 1].getLowerCrossPointRange(upperTrack);
+        const utils::IntervalT<int>& fromLowerTrack = layers[layerIdx - 1].getUpperCrossPointRange(lowerTrack);
+        return fromUpperTrack.IntersectWith(fromLowerTrack);
+    }
+}
+
+GridBoxOnLayer LayerList::getSurroundingGrid(int layerIdx, utils::PointT<DBU> loc) const {
+    auto dir = layers[layerIdx].direction;
+    return {layerIdx, getSurroundingTrack(layerIdx, loc[dir]), getSurroundingCrossPoint(layerIdx, loc[1 - dir])};
 }
 
 utils::IntervalT<int> LayerList::rangeSearchTrack(int layerIdx,
@@ -214,9 +226,9 @@ utils::IntervalT<int> LayerList::rangeSearchCrossPoint(int layerIdx,
             const utils::IntervalT<int>& fromUpperTrack = layers[layerIdx + 1].getLowerCrossPointRange(upperTrack);
             const utils::IntervalT<int>& fromLowerTrack = layers[layerIdx - 1].getUpperCrossPointRange(lowerTrack);
             return fromUpperTrack.UnionWith(fromLowerTrack);
-        } else if (upperValid) {
+        } else if (upperValid || (!lowerValid && layers[layerIdx + 1].isTrackRangeWeaklyValid(upperTrack))) {
             return layers[layerIdx + 1].getLowerCrossPointRange(upperTrack);
-        } else if (lowerValid) {
+        } else if (layers[layerIdx - 1].isTrackRangeWeaklyValid(lowerTrack)) {
             return layers[layerIdx - 1].getUpperCrossPointRange(lowerTrack);
         } else {
             return {0, -1};  // a little bit safer than default {inf, -inf}
@@ -226,9 +238,9 @@ utils::IntervalT<int> LayerList::rangeSearchCrossPoint(int layerIdx,
 
 GridBoxOnLayer LayerList::rangeSearch(const BoxOnLayer& box, bool includeBound) const {
     auto dir = layers[box.layerIdx].direction;
-    return GridBoxOnLayer(box.layerIdx,
-                          rangeSearchTrack(box.layerIdx, box[dir], includeBound),
-                          rangeSearchCrossPoint(box.layerIdx, box[1 - dir], includeBound));
+    return {box.layerIdx,
+            rangeSearchTrack(box.layerIdx, box[dir], includeBound),
+            rangeSearchCrossPoint(box.layerIdx, box[1 - dir], includeBound)};
 }
 
 utils::PointT<DBU> LayerList::getLoc(const GridPoint& gridPt) const {
@@ -242,7 +254,7 @@ BoxOnLayer LayerList::getLoc(const GridBoxOnLayer& gridBox) const {
 }
 
 std::pair<utils::PointT<DBU>, utils::PointT<DBU>> LayerList::getLoc(const GridEdge& edge) const {
-    assert(edge.isTrackSegment());
+    assert(edge.isTrackSegment() || edge.isWrongWaySegment());
     return layers[edge.u.layerIdx].getLoc(edge);
 }
 
@@ -420,8 +432,8 @@ void LayerList::initViaWire(const int layerIdx,
     const DBU halfWidth = ceil(layer.width / 2.0);
     const DBU viaMetalWidth = viaMetal[layer.direction].range();
     const DBU viaMetalHeight = viaMetal[1 - layer.direction].range();
-    const DBU pSpace = layer.getSpace(min(viaMetalWidth, viaMetalHeight));
-    const DBU space = max(pSpace, max(layer.maxEolSpace, layer.maxEolWithin));
+    const DBU pSpace = layer.getParaRunSpace(viaMetal);
+    const DBU space = max({pSpace, layer.maxEolSpace, layer.maxEolWithin});
     const size_t xSize = max(ceil((space + halfWidth + viaMetal[layer.direction].high) / (double)layer.pitch),
                              ceil((space + halfWidth - viaMetal[layer.direction].low) / (double)layer.pitch)) -
                          1;
@@ -452,8 +464,7 @@ void LayerList::initViaWire(const int layerIdx,
                 } else if (k > ySize) {
                     yDist = max(0L, tmpCP.location - cp.location - halfWidth - viaMetal[1 - layer.direction].high);
                 }
-                if (xDist < pSpace && !yDist && viaMetalHeight >= layer.maxEolWidth ||
-                    yDist < pSpace && !xDist && viaMetalWidth >= layer.maxEolWidth ||
+                if (pow(xDist, 2) + pow(yDist, 2) < pow(pSpace, 2) ||
                     layer.isEolViolation(xDist, viaMetalHeight, yDist) ||
                     layer.isEolViolation(yDist, viaMetalWidth, xDist)) {
                     viaTrack[abs((int)j - (int)xSize)] = true;
@@ -477,158 +488,254 @@ void LayerList::initViaWire(const int layerIdx,
     }
 }
 
-void LayerList::initViaAccess() {
+void LayerList::initViaConfLUT() {
     for (unsigned i = 0; i != cutLayers.size(); ++i) {
         CutLayer& cutLayer = cutLayers[i];
-        const MetalLayer& botLayer = layers[i];
-        const MetalLayer& topLayer = layers[i + 1];
-        const Dimension botDim = botLayer.direction;
-        const Dimension topDim = topLayer.direction;
-        if (botDim == topDim) {
-            log() << "Error in " << __func__ << ": botLayer.direction is " << botDim << " , topLayer.direction is "
-                  << topDim << " , the same... " << std::endl;
-        }
-        const utils::BoxT<DBU>& bot = cutLayer.defaultViaType().bot;
-        const utils::BoxT<DBU>& cut = cutLayer.defaultViaType().cut;
-        const utils::BoxT<DBU>& top = cutLayer.defaultViaType().top;
-        const DBU botWidth = bot[botDim].range();
-        const DBU cutWidth = cut[botDim].range();
-        const DBU topWidth = top[botDim].range();
-        const DBU botHeight = bot[topDim].range();
-        const DBU cutHeight = cut[topDim].range();
-        const DBU topHeight = top[topDim].range();
-        //  FIXED: consider non-default spacing
-        //  const DBU botDftSpacing = botLayer.defaultSpace;
-        const DBU cutSpacing = cutLayer.spacing;
-        //  const DBU topDftSpacing = topLayer.defaultSpace;
-        const DBU botPSpace = botLayer.getSpace(min(botWidth, botHeight));
-        const DBU topPSpace = topLayer.getSpace(min(topWidth, topHeight));
-        const DBU botSpace = max(botPSpace, max(botLayer.maxEolSpace, botLayer.maxEolWithin));
-        const DBU topSpace = max(topPSpace, max(topLayer.maxEolSpace, topLayer.maxEolWithin));
-        const DBU botPitch = botLayer.pitch;
-        const DBU topPitch = topLayer.pitch;
-
-        //  1. init viaCut & viaMetal
-        const size_t cutXSize = ceil((cutSpacing + cutWidth) / (double)botPitch) - 1;
-        //  cout << cutSpacing << '\t' << cutWidth << '\t' << botPitch << std::endl;
-        const size_t cutYSize = ceil((cutSpacing + cutHeight) / (double)topPitch) - 1;
-        const size_t metalXSize =
-            max(cutXSize, (size_t)ceil((max(botSpace + botWidth, topSpace + topWidth)) / (double)botPitch) - 1);
-        const size_t metalYSize =
-            max(cutYSize, (size_t)ceil((max(botSpace + botHeight, topSpace + topHeight)) / (double)topPitch) - 1);
-        cutLayer.viaCut.resize(cutXSize + 1, vector<bool>(cutYSize + 1, false));
-        cutLayer.viaMetal.resize(metalXSize + 1, vector<bool>(metalYSize + 1, false));
-        vector<bool> viaMetalTrack(metalXSize + 1, false);
-        for (unsigned j = 0; j != cutXSize + 1; ++j) {
-            const DBU cutXDist = max(0L, botPitch * j - cutWidth);
-            for (unsigned k = 0; k != cutYSize + 1; ++k) {
-                const DBU cutYDist = max(0L, topPitch * k - cutHeight);
-                if (pow(cutXDist, 2) + pow(cutYDist, 2) < pow(cutSpacing, 2)) {
-                    cutLayer.viaCut[j][k] = true;
-                }
+        // Loops for init all-all via-via LUTs
+        for (unsigned j = 0; j != cutLayer.allViaTypes.size(); ++j) {
+            ViaType& viaType1 = cutLayer.allViaTypes[j];
+            viaType1.allViaCut.resize(cutLayer.allViaTypes.size());
+            viaType1.allViaMetal.resize(cutLayer.allViaTypes.size());
+            viaType1.allViaMetalNum.resize(cutLayer.allViaTypes.size());
+            for (unsigned k = 0; k != cutLayer.allViaTypes.size(); ++k) {
+                ViaType& viaType2 = cutLayer.allViaTypes[k];
+                auto& viaCut = viaType1.allViaCut[k];
+                auto& viaMetal = viaType1.allViaMetal[k];
+                auto& viaMetalNum = viaType1.allViaMetalNum[k];
+                initSameLayerViaConfLUT(i, viaType1, viaType2, viaCut, viaMetal, viaMetalNum);
             }
-        }
-
-        for (unsigned j = 0; j != metalXSize + 1; ++j) {
-            const DBU botXDist = max(0L, botPitch * j - botWidth);
-            const DBU topXDist = max(0L, botPitch * j - topWidth);
-            for (unsigned k = 0; k != metalYSize + 1; ++k) {
-                const DBU botYDist = max(0L, topPitch * k - botHeight);
-                const DBU topYDist = max(0L, topPitch * k - topHeight);
-                if (j <= cutXSize && k <= cutYSize && cutLayer.viaCut[j][k] ||
-                    botXDist < botPSpace && !botYDist && botHeight >= botLayer.maxEolWidth ||
-                    botYDist < botPSpace && !botXDist && botWidth >= botLayer.maxEolWidth ||
-                    topXDist < topPSpace && !topYDist && topHeight >= topLayer.maxEolWidth ||
-                    topYDist < topPSpace && !topXDist && topWidth >= topLayer.maxEolWidth ||
-                    botLayer.isEolViolation(botXDist, botHeight, botYDist) ||
-                    botLayer.isEolViolation(botYDist, botWidth, botXDist) ||
-                    topLayer.isEolViolation(topXDist, topHeight, topYDist) ||
-                    topLayer.isEolViolation(topYDist, topWidth, topXDist)) {
-                    viaMetalTrack[j] = true;
-                    cutLayer.viaMetal[j][k] = true;
-                }
-            }
-        }
-        size_t minMetalXSize = metalXSize;
-        for (; minMetalXSize && !viaMetalTrack[minMetalXSize]; --minMetalXSize) {
-        }
-        if (minMetalXSize < metalXSize) {
-            cutLayer.viaMetal.resize(minMetalXSize + 1);
         }
 
         //  2. init viaTopVia & viaBotVia
-        const unsigned nBotCPs = botLayer.numCrossPoints();
         if (i > 0) {
-            const utils::BoxT<DBU>& tmp = cutLayers[i - 1].defaultViaType().top;
-            const size_t xSize = max(ceil((botSpace + bot[botDim].high - tmp[botDim].low) / (double)botPitch),
-                                     ceil((botSpace + tmp[botDim].high - bot[botDim].low) / (double)botPitch)) -
-                                 1;
-            const utils::IntervalT<DBU> botLocRange(-tmp[1 - botDim].high + bot[1 - botDim].low - botSpace + 1,
-                                                    +bot[1 - botDim].high - tmp[1 - botDim].low + botSpace - 1);
-            vector<vector<vector<bool>>>& viaBotVia = cutLayer.viaBotVia;
-            viaBotVia.resize(nBotCPs);
-            for (unsigned j = 0; j != nBotCPs; ++j) {
-                utils::IntervalT<DBU> tmpLocRange(botLocRange);
-                tmpLocRange.ShiftBy(botLayer.crossPoints[j].location);
-                const utils::IntervalT<int>& cpRange = rangeSearchCrossPoint(i, tmpLocRange);
-                const size_t ySize = max((int)j - cpRange.low, cpRange.high - (int)j);
-                if (botLayer.crossPoints[j].upperTrackIdx >= 0) {
-                    viaBotVia[j].resize(xSize * 2 + 1, vector<bool>(ySize * 2 + 1, false));
-                } else {
-                    viaBotVia[j].resize(xSize * 2 + 1, vector<bool>(ySize * 2 + 1, true));
+            // Loops for init all-all via-via LUTs
+            for (unsigned j = 0; j != cutLayer.allViaTypes.size(); ++j) {
+                ViaType& viaType1 = cutLayer.allViaTypes[j];
+                viaType1.allViaBotVia.resize(cutLayers[i - 1].allViaTypes.size());
+                for (unsigned k = 0; k != cutLayers[i - 1].allViaTypes.size(); ++k) {
+                    ViaType& viaType2 = cutLayers[i - 1].allViaTypes[k];
+                    viaType2.allViaTopVia.resize(cutLayer.allViaTypes.size());
+                    auto& viaBotVia = viaType1.allViaBotVia[k];
+                    auto& viaTopVia = viaType2.allViaTopVia[j];
+                    initDiffLayerViaConfLUT(i, viaType1, viaType2, viaBotVia, viaTopVia);
                 }
             }
-            for (unsigned j = 0; j != nBotCPs; ++j) {
-                const CrossPoint& cp = botLayer.crossPoints[j];
-                if (cp.upperTrackIdx == -1) {
-                    continue;
-                }
-                const unsigned ySize = (viaBotVia[j][0].size() - 1) / 2;
-                for (unsigned k = 0; k != xSize * 2 + 1; ++k) {
-                    DBU xDist = 0;
-                    if (k < xSize) {
-                        xDist = max(0L, int(xSize - k) * botPitch - tmp[botDim].high + bot[botDim].low);
-                    } else if (k > xSize) {
-                        xDist = max(0L, int(k - xSize) * botPitch - bot[botDim].high + tmp[botDim].low);
-                    }
-                    for (unsigned l = max(0, (int)ySize - (int)j); l < min(ySize * 2 + 1, nBotCPs + ySize - j); ++l) {
-                        const CrossPoint& tmpCP = botLayer.crossPoints[j + l - ySize];
-                        if (tmpCP.lowerTrackIdx == -1) {
-                            viaBotVia[j][k][l] = true;
-                            continue;
-                        }
-                        DBU yDist = 0;
-                        if (l < ySize) {
-                            yDist = max(0L, cp.location - tmpCP.location - tmp[1 - botDim].high + bot[1 - botDim].low);
-                        } else if (l > ySize) {
-                            yDist = max(0L, tmpCP.location - cp.location - bot[1 - botDim].high + tmp[1 - botDim].low);
-                        }
-                        if (xDist < botPSpace && !yDist && botHeight >= botLayer.maxEolWidth ||
-                            yDist < botPSpace && !xDist && botWidth >= botLayer.maxEolWidth ||
-                            botLayer.isEolViolation(xDist, botHeight, yDist) ||
-                            botLayer.isEolViolation(yDist, botWidth, xDist)) {
-                            viaBotVia[j][k][l] = true;
-                        }
-                    }
-                }
-            }
-            LayerList::initOppLUT(viaBotVia, cutLayers[i - 1].viaTopVia);
         }
 
         //  3. init viaBotWire & viaTopWire
-        initViaWire(i, bot, cutLayer.viaBotWire);
-        initViaWire(i + 1, top, cutLayer.viaTopWire);
+        layers[i].wireTopVia.resize(cutLayer.allViaTypes.size());
+        layers[i + 1].wireBotVia.resize(cutLayer.allViaTypes.size());
         for (auto& viaType : cutLayer.allViaTypes) {
             initViaWire(i, viaType.bot, viaType.viaBotWire);
             initViaWire(i + 1, viaType.top, viaType.viaTopWire);
+            LayerList::initOppLUT(viaType.viaBotWire, layers[i].wireTopVia[viaType.idx]);
+            LayerList::initOppLUT(viaType.viaTopWire, layers[i + 1].wireBotVia[viaType.idx]);
         }
-
-        LayerList::initOppLUT(cutLayer.viaBotWire, layers[i].wireTopVia);
-        LayerList::initOppLUT(cutLayer.viaTopWire, layers[i + 1].wireBotVia);
     }
+
+    // 4. init wireRange
     for (MetalLayer& layer : layers) {
         layer.initWireRange();
     }
+
+    // Merge LUTs
+    for (unsigned i = 0; i != cutLayers.size(); ++i) {
+        CutLayer& cutLayer = cutLayers[i];
+        for (unsigned j = 0; j != cutLayer.allViaTypes.size(); ++j) {
+            ViaType& viaType = cutLayer.allViaTypes[j];
+            viaType.mergedAllViaMetal = mergeLUTs(viaType.allViaMetal);
+            if (i > 0) {
+                for (int k = 0; k != viaType.allViaBotVia.size(); ++k) {
+                    viaType.mergedAllViaBotVia = mergeLUTsCP(viaType.allViaBotVia);
+                }
+            }
+            if (i < cutLayers.size()) {
+                for (int k = 0; k != viaType.allViaTopVia.size(); ++k) {
+                    viaType.mergedAllViaTopVia = mergeLUTsCP(viaType.allViaTopVia);
+                }
+            }
+        }
+    }
+    for (int i = 0; i < layers.size(); ++i) {
+        MetalLayer& layer = layers[i];
+        if (i > 0) {
+            layer.mergedWireBotVia = mergeLUTsCP(layer.wireBotVia);
+        }
+        if ((i + 1) < layers.size()) {
+            layer.mergedWireTopVia = mergeLUTsCP(layer.wireTopVia);
+        }
+    }
+
+    // Set isWireViaMultiTrack
+    for (int i = 0; i < layers.size(); ++i) {
+        if (i > 0 && layers[i].wireBotVia[0][0].size() > 1 ||
+            (i + 1) < layers.size() && layers[i].wireTopVia[0][0].size() > 1)
+            layers[i].isWireViaMultiTrack = true;
+    }
+
+    //  writeDefConflictLUTs("debugConflictLUTa.log");
+    //  exit(0);
+}
+
+void LayerList::initSameLayerViaConfLUT(const int layerIdx,
+                                        ViaType& viaT1,
+                                        ViaType& viaT2,
+                                        vector<vector<bool>>& viaCut,
+                                        vector<vector<bool>>& viaMetal,
+                                        vector<vector<int>>& viaMetalNum) {
+    CutLayer& cutLayer = cutLayers[layerIdx];
+    MetalLayer& botLayer = layers[layerIdx];
+    MetalLayer& topLayer = layers[layerIdx + 1];
+    const Dimension botDim = botLayer.direction;
+    const Dimension topDim = topLayer.direction;
+    const DBU cutSpacing = cutLayer.spacing;
+
+    const utils::BoxT<DBU>& botT1 = viaT1.bot;
+    const utils::BoxT<DBU>& cutT1 = viaT1.cut;
+    const utils::BoxT<DBU>& topT1 = viaT1.top;
+    const utils::BoxT<DBU>& botT2 = viaT2.bot;
+    const utils::BoxT<DBU>& cutT2 = viaT2.cut;
+    const utils::BoxT<DBU>& topT2 = viaT2.top;
+
+    const DBU botPSpace = max(botLayer.getParaRunSpace(botT1), botLayer.getParaRunSpace(botT2));
+    const DBU topPSpace = max(topLayer.getParaRunSpace(topT1), topLayer.getParaRunSpace(topT2));
+    const DBU botCSpace = 0;  // max(botLayer.getCornerSpace(botT1), botLayer.getCornerSpace(botT2));
+    const DBU topCSpace = 0;  // max(topLayer.getCornerSpace(topT1), topLayer.getCornerSpace(topT2));
+    const DBU botSpace = max({botPSpace, botCSpace, botLayer.maxEolSpace, botLayer.maxEolWithin});
+    const DBU topSpace = max({topPSpace, topCSpace, topLayer.maxEolSpace, topLayer.maxEolWithin});
+    const DBU botPitch = botLayer.pitch;
+    const DBU topPitch = topLayer.pitch;
+    // init viaCut & viaMetal
+    const size_t cutXSize = max(ceil((cutSpacing + cutT1[botDim].high - cutT2[botDim].low) / (double)botPitch),
+                                ceil((cutSpacing + cutT2[botDim].high - cutT1[botDim].low) / (double)botPitch)) -
+                            1;
+    const size_t cutYSize = max(ceil((cutSpacing + cutT1[topDim].high - cutT2[topDim].low) / (double)topPitch),
+                                ceil((cutSpacing + cutT2[topDim].high - cutT1[topDim].low) / (double)topPitch)) -
+                            1;
+    const DBU metalXLength = max({botSpace + botT2[botDim].high - botT1[botDim].low,
+                                  botSpace + botT1[botDim].high - botT2[botDim].low,
+                                  topSpace + topT2[botDim].high - topT1[botDim].low,
+                                  topSpace + topT1[botDim].high - topT2[botDim].low});
+    const DBU metalYLength = max({botSpace + botT2[topDim].high - botT1[topDim].low,
+                                  botSpace + botT1[topDim].high - botT2[topDim].low,
+                                  topSpace + topT2[topDim].high - topT1[topDim].low,
+                                  topSpace + topT1[topDim].high - topT2[topDim].low});
+    const size_t metalXSize = max(cutXSize, (size_t)ceil((metalXLength) / (double)botPitch) - 1);
+    const size_t metalYSize = max(cutYSize, (size_t)ceil((metalYLength) / (double)topPitch) - 1);
+    const DBU maxLength = max(metalXLength, metalYLength);
+    botLayer.confLutMargin = max(botLayer.confLutMargin, maxLength);
+    topLayer.confLutMargin = max(topLayer.confLutMargin, maxLength);
+    viaCut.resize(2 * cutXSize + 1, vector<bool>(2 * cutYSize + 1, false));
+    viaMetal.resize(2 * metalXSize + 1, vector<bool>(2 * metalYSize + 1, false));
+    viaMetalNum.resize(2 * metalXSize + 1, vector<int>(2 * metalYSize + 1, 0));
+    vector<bool> viaMetalTrack(2 * metalXSize + 1, false);
+
+    utils::PointT<DBU> delta;
+    for (unsigned j = 0; j != 2 * cutXSize + 1; ++j) {
+        delta[botDim] = botPitch * (static_cast<int>(j) - static_cast<int>(cutXSize));
+        for (unsigned k = 0; k != 2 * cutYSize + 1; ++k) {
+            delta[topDim] = topPitch * (static_cast<int>(k) - static_cast<int>(cutYSize));
+            utils::BoxT<DBU> tmpT2(cutT2);
+            tmpT2.ShiftBy(delta);
+            if (utils::L2Dist(tmpT2, cutT1) < cutSpacing) viaCut[j][k] = true;
+        }
+    }
+
+    const size_t offsetX{metalXSize - cutXSize};
+    const size_t offsetY{metalYSize - cutYSize};
+    for (unsigned j = 0; j != 2 * metalXSize + 1; ++j) {
+        delta[botDim] = botPitch * (static_cast<int>(j) - static_cast<int>(metalXSize));
+        for (unsigned k = 0; k != 2 * metalYSize + 1; ++k) {
+            delta[topDim] = topPitch * (static_cast<int>(k) - static_cast<int>(metalYSize));
+            utils::BoxT<DBU> tmpBotT2(botT2);
+            utils::BoxT<DBU> tmpTopT2(topT2);
+            tmpBotT2.ShiftBy(delta);
+            tmpTopT2.ShiftBy(delta);
+            viaMetalNum[j][k] +=
+                static_cast<int>(j <= 2 * cutXSize + offsetX && k <= 2 * cutYSize + offsetY && j >= offsetX &&
+                                 k >= offsetY && viaCut[j - offsetX][k - offsetY]) +
+                static_cast<int>(
+                    L2Dist(tmpBotT2, botT1) < botPSpace || L2Dist(tmpTopT2, topT1) < topPSpace ||
+                    botLayer.isEolViolation(tmpBotT2, botT1) || topLayer.isEolViolation(tmpTopT2, topT1));  // ||
+                    // utils::ParaRunLength(tmpBotT2, botT1) <= 0 && utils::LInfDist(tmpBotT2, botT1) < botCSpace ||
+                    // utils::ParaRunLength(tmpTopT2, topT1) <= 0 && utils::LInfDist(tmpTopT2, topT1) < topCSpace);
+            if (viaMetalNum[j][k]) {
+                viaMetalTrack[j] = true;
+                viaMetal[j][k] = true;
+            }
+        }
+    }
+
+    size_t minMetalXSize = 2 * metalXSize + 1;
+    for (; minMetalXSize && !viaMetalTrack[minMetalXSize]; --minMetalXSize) {
+    }
+    if (minMetalXSize < metalXSize) viaMetal.resize(minMetalXSize + 1);
+}
+
+void LayerList::initDiffLayerViaConfLUT(const int layerIdx,
+                                        ViaType& viaT1,
+                                        ViaType& viaT2,
+                                        vector<vector<vector<bool>>>& viaBotVia,
+                                        vector<vector<vector<bool>>>& viaTopVia) {
+    MetalLayer& botLayer = layers[layerIdx];
+    const Dimension botDim = botLayer.direction;
+
+    const utils::BoxT<DBU>& botT1 = viaT1.bot;
+    const utils::BoxT<DBU>& topT2 = viaT2.top;
+
+    const DBU botPSpace = max(botLayer.getParaRunSpace(botT1), botLayer.getParaRunSpace(topT2));
+    const DBU botCSpace = 0;  // max(botLayer.getCornerSpace(botT1), botLayer.getCornerSpace(topT2));
+    const DBU botSpace = max({botPSpace, botCSpace, botLayer.maxEolSpace, botLayer.maxEolWithin});
+    const DBU botPitch = botLayer.pitch;
+
+    const unsigned nBotCPs = botLayer.numCrossPoints();
+
+    const DBU xLength = botSpace + max(botT1[botDim].high - topT2[botDim].low, topT2[botDim].high - botT1[botDim].low);
+    const size_t xSize = ceil(xLength / (double)botPitch) - 1;
+    const utils::IntervalT<DBU> botLocRange(-topT2[1 - botDim].high + botT1[1 - botDim].low - botSpace + 1,
+                                            +botT1[1 - botDim].high - topT2[1 - botDim].low + botSpace - 1);
+                                            
+    const DBU maxLength = max<DBU>({xLength, -botLocRange.low, botLocRange.high});
+    botLayer.confLutMargin = max(botLayer.confLutMargin, maxLength);
+    viaBotVia.resize(nBotCPs);
+    for (unsigned j = 0; j != nBotCPs; ++j) {
+        utils::IntervalT<DBU> tmpLocRange(botLocRange);
+        tmpLocRange.ShiftBy(botLayer.crossPoints[j].location);
+        const utils::IntervalT<int>& cpRange = rangeSearchCrossPoint(layerIdx, tmpLocRange);
+        const size_t ySize = max((int)j - cpRange.low, cpRange.high - (int)j);
+        if (botLayer.crossPoints[j].upperTrackIdx >= 0) {
+            viaBotVia[j].resize(xSize * 2 + 1, vector<bool>(ySize * 2 + 1, false));
+        } else {
+            viaBotVia[j].resize(xSize * 2 + 1, vector<bool>(ySize * 2 + 1, true));
+        }
+    }
+
+    utils::PointT<DBU> delta;
+    for (unsigned j = 0; j != nBotCPs; ++j) {
+        const CrossPoint& cp = botLayer.crossPoints[j];
+        if (cp.upperTrackIdx == -1) {
+            continue;
+        }
+        const unsigned ySize = (viaBotVia[j][0].size() - 1) / 2;
+        for (unsigned k = 0; k != xSize * 2 + 1; ++k) {
+            delta[botDim] = botPitch * (static_cast<int>(k) - static_cast<int>(xSize));
+            for (unsigned l = max(0, (int)ySize - (int)j); l < min(ySize * 2 + 1, nBotCPs + ySize - j); ++l) {
+                const CrossPoint& tmpCP = botLayer.crossPoints[j + l - ySize];
+                if (tmpCP.lowerTrackIdx == -1) {
+                    viaBotVia[j][k][l] = true;
+                    continue;
+                }
+                delta[1 - botDim] = tmpCP.location - cp.location;
+                utils::BoxT<DBU> tmpTopT2(topT2);
+                tmpTopT2.ShiftBy(delta);
+                if (L2Dist(tmpTopT2, botT1) < botPSpace || botLayer.isEolViolation(tmpTopT2, botT1)) {  // ||
+                    // utils::ParaRunLength(tmpTopT2, botT1) <= 0 && utils::LInfDist(tmpTopT2, botT1) < botCSpace) {
+                    viaBotVia[j][k][l] = true;
+                }
+            }
+        }
+    }
+    LayerList::initOppLUT(viaBotVia, viaTopVia);
 }
 
 void LayerList::initViaForbidRegions() {
@@ -647,6 +754,56 @@ void LayerList::initViaForbidRegions() {
             }
         }
     }
+}
+
+void LayerList::mergeLUT(vector<vector<bool>>& lhs, const vector<vector<bool>>& rhs) {
+    const unsigned lhsXSize = lhs.size() / 2;
+    const unsigned lhsYSize = lhs[0].size() / 2;
+    const unsigned rhsXSize = rhs.size() / 2;
+    const unsigned rhsYSize = rhs[0].size() / 2;
+    const unsigned offsetX = lhsXSize - rhsXSize;
+    const unsigned offsetY = lhsYSize - rhsYSize;
+    for (unsigned j = 0; j != rhs.size(); ++j) {
+        for (unsigned k = 0; k != rhs[0].size(); ++k) {
+            if (rhs[j][k]) lhs[j + offsetX][k + offsetY] = true;
+        }
+    }
+}
+
+vector<vector<bool>> LayerList::mergeLUTs(const vector<vector<vector<bool>>>& LUTs) {
+    int XSize = 0, YSize = 0;
+    vector<vector<bool>> mergedLUT;
+    for (auto& LUT : LUTs) {
+        XSize = max(XSize, int(LUT.size()));
+        YSize = max(YSize, int(LUT[0].size()));
+    }
+    mergedLUT.resize(XSize, vector<bool>(YSize, false));
+    for (auto& LUT : LUTs) {
+        mergeLUT(mergedLUT, LUT);
+    }
+    return mergedLUT;
+}
+
+vector<vector<vector<bool>>> LayerList::mergeLUTsCP(const vector<vector<vector<vector<bool>>>>& LUTs) {
+    vector<int> XSizes(LUTs[0].size(), 0);
+    vector<int> YSizes(LUTs[0].size(), 0);
+    // crossPointIdx, trackIdx, crossPointIdx
+    vector<vector<vector<bool>>> mergedLUTs(LUTs[0].size());
+    for (unsigned cpIdx = 0; cpIdx != LUTs[0].size(); ++cpIdx) {
+        for (unsigned typeIdx = 0; typeIdx != LUTs.size(); ++typeIdx) {
+            XSizes[cpIdx] = max(XSizes[cpIdx], int(LUTs[typeIdx][cpIdx].size()));
+            YSizes[cpIdx] = max(YSizes[cpIdx], int(LUTs[typeIdx][cpIdx][0].size()));
+        }
+        mergedLUTs[cpIdx].resize(XSizes[cpIdx], vector<bool>(YSizes[cpIdx], false));
+    }
+
+    for (unsigned cpIdx = 0; cpIdx != LUTs[0].size(); ++cpIdx) {
+        for (unsigned typeIdx = 0; typeIdx != LUTs.size(); ++typeIdx) {
+            mergeLUT(mergedLUTs[cpIdx], LUTs[typeIdx][cpIdx]);
+        }
+    }
+
+    return mergedLUTs;
 }
 
 void LayerList::print() {
@@ -686,8 +843,64 @@ void LayerList::print() {
     for (const CutLayer& layer : cutLayers) {
         layer.printViaOccupancyLUT(log()) << std::endl;
     }
-    //  cout << cutLayers[3].viaCut << std::endl;
     log() << "The total number of via candidates is " << numVias << std::endl;
+}
+
+void LayerList::writeDefConflictLUTs(const std::string& debugFileName) const {
+    std::ofstream ofs(debugFileName);
+    int cpIdx = 0;
+    for (const auto& cutLayer : cutLayers) {
+        cutLayer.printBasics(ofs);
+        cutLayer.printDesignRules(ofs);
+        cutLayer.printViaOccupancyLUT(ofs);
+        ofs << "viaCut" << std::endl;
+        int xSize = ((int)cutLayer.allViaTypes[0].allViaCut[0].size() - 1) / 2;
+        int ySize = ((int)cutLayer.allViaTypes[0].allViaCut[0][0].size() - 1) / 2;
+        for (int j = xSize; j != cutLayer.allViaTypes[0].allViaCut[0].size(); ++j) {
+            for (int k = ySize; k != cutLayer.allViaTypes[0].allViaCut[0][0].size(); ++k) {
+                ofs << (int)(cutLayer.allViaTypes[0].allViaCut[0][j][k]) << " ";
+            }
+            ofs << std::endl;
+        }
+        ofs << std::endl;
+        ofs << "viaMetal" << std::endl;
+        xSize = ((int)cutLayer.allViaTypes[0].allViaMetal[0].size() - 1) / 2;
+        ySize = ((int)cutLayer.allViaTypes[0].allViaMetal[0][0].size() - 1) / 2;
+        for (int j = xSize; j != cutLayer.allViaTypes[0].allViaMetal[0].size(); ++j) {
+            for (int k = ySize; k != cutLayer.allViaTypes[0].allViaMetal[0][0].size(); ++k) {
+                ofs << (int)(cutLayer.allViaTypes[0].allViaMetal[0][j][k]) << " ";
+            }
+            ofs << std::endl;
+        }
+        ofs << std::endl;
+        ofs << "viaBotVia" << std::endl;
+        cpIdx = 0;
+        if (cutLayer.idx > 0) {
+            for (const auto& cp : cutLayer.allViaTypes[0].allViaBotVia[0]) {
+                ofs << "cpidx is: " << cpIdx++ << std::endl;
+                for (auto a : cp) {
+                    for (auto b : a) {
+                        ofs << (int)(b) << " ";
+                    }
+                    ofs << std::endl;
+                }
+            }
+        }
+        ofs << "viaTopVia" << std::endl;
+        cpIdx = 0;
+        if (cutLayer.idx < cutLayers.size() - 1) {
+            for (const auto& cp : cutLayer.allViaTypes[0].allViaTopVia[0]) {
+                ofs << "cpidx is: " << cpIdx++ << std::endl;
+                for (auto a : cp) {
+                    for (auto b : a) {
+                        ofs << (int)(b) << " ";
+                    }
+                    ofs << std::endl;
+                }
+            }
+        }
+        ofs << std::endl;
+    }
 }
 
 }  // namespace db

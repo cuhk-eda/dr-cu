@@ -1,14 +1,20 @@
+#pragma once
+
 #include "LocalNet.h"
 
 class PostMazeRoute {
 public:
-    PostMazeRoute(LocalNet& localNetData) : localNet(localNetData) {}
+    PostMazeRoute(db::NetBase& netBase) : net(netBase) {}
     void run();
+    void run2();  // rerun extendMinAreaWires
 
 private:
-    LocalNet& localNet;
+    db::NetBase& net;
+
     // Remove track switch which goes to another layer and back with via spacing violation
     void removeTrackSwitchWithVio();
+
+    // Extend wires to resolve min area violations
     void extendMinAreaWires();
-    vector<db::GridEdge> getExtendWireRects(const db::GridEdge& edge) const;
+    void getExtendWireRects(const std::vector<std::shared_ptr<db::GridSteiner>>& candEdge) const;
 };

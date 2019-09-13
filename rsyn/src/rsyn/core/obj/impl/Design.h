@@ -225,7 +225,7 @@ Design::createLibraryCell(const CellDescriptor &dscp, const bool ignoreDuplicate
 	std::map<std::string, int> mapping;
 
 	for (int i = 0; i < numPins; i++) {
-		const std::tuple<std::string, Direction, PinUse> &t = dscp.pins[i];
+		const std::tuple<std::string, Direction, Use> &t = dscp.pins[i];
 		mapping[std::get<0>(t)] = i;
 	} // end for	
 
@@ -233,7 +233,7 @@ Design::createLibraryCell(const CellDescriptor &dscp, const bool ignoreDuplicate
 	lcell->pins.resize(numPins);
 	for (auto element : mapping) {
 		const int index = element.second;
-		const std::tuple<std::string, Direction, PinUse> &t = dscp.pins[index];
+		const std::tuple<std::string, Direction, Use> &t = dscp.pins[index];
 
 		LibraryPinData * lpin = &(data->libraryPins.create()->value); // TODO: awful
 		lpin->id = data->libraryPins.lastId();
@@ -742,6 +742,24 @@ inline
 int
 Design::getNumInstances() const {
 	return data->instances.size();
+} // end method
+
+// -----------------------------------------------------------------------------
+
+inline
+Range<ReferenceListCollection<Cell>>
+Design::getAllCells() const {
+    for (Instance inst : data->topModule.allInstances()){
+        if (inst.getType() != CELL)
+            continue;
+        data->cells.add(inst.asCell());
+    }
+    Range<ReferenceListCollection<Cell>> a = ReferenceListCollection<Cell>(data->cells);
+    for (Cell c : a){
+        std::cout << c.getName() << "\n";
+        break;
+    }
+        return ReferenceListCollection<Cell>(data->cells); 
 } // end method
 
 // -----------------------------------------------------------------------------

@@ -64,6 +64,11 @@ public:
 	//!        net arc, returns null.
 	LibraryArc getLibraryArc() const;
 
+	//! @brief Returns the library cell related to this arc if any. If this is a
+	//!        net arc or belong to an instance without library cell, returns
+	//!        null.
+	LibraryCell getLibraryCell() const;
+
 	//! @brief Returns the "from" pin of this arc.
 	//! @note  For cell arcs, the "from" pin is always an input pin. For net
 	//!        arcs, the "from" pin is always an output (driver) pin.

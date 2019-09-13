@@ -106,9 +106,6 @@ public:
 class LefMacroDscp {
 public:
 	lefiMacro* clsMacro = nullptr;
-	std::string clsSite = INVALID_LEF_NAME;
-	std::string clsSymmetry = INVALID_LEF_NAME;
-	double2 clsSize;
 	std::vector<LefPinDscp> clsPins;
 	std::vector<LefObsDscp> clsObs;
 	LefMacroDscp() { clsMacro = new lefiMacro(); }

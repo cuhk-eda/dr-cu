@@ -49,6 +49,7 @@ public:
 	PhysicalSpecialNet(std::nullptr_t) : Proxy(nullptr) {
 	}
 	
+	const DefNetDscp & getNet() const;
 }; // end class 
 
 } // end namespace 

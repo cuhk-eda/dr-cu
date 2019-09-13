@@ -48,12 +48,14 @@ void RoutingGuide::loadGuides(const GuideDscp & dscp) {
 	for (const GuideNetDscp & netDscp : dscp.clsNetGuides) {
 		Rsyn::Net net = clsDesign.findNetByName(netDscp.clsNetName);
 		if (net) {
+                        int id = 0;
 			NetGuide & netGuide = clsGuides[net];
 			std::vector<LayerGuide> & layerGuides= netGuide.clsLayerGuides;
 			layerGuides.reserve(netDscp.clsLayerDscps.size());
 			for (const GuideLayerDscp & layerDscp : netDscp.clsLayerDscps) {
 				layerGuides.push_back(LayerGuide());
 				LayerGuide & layerGuide = layerGuides.back();
+                                layerGuide.clsId = id++;
 				layerGuide.clsBounds = layerDscp.clsLayerGuide;
 				layerGuide.clsPhLayer = clsPhDesign.getPhysicalLayerByName(layerDscp.clsLayer);
 			} // end for

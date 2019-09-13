@@ -31,6 +31,7 @@ public:
     int getNodeNum() const { return conn.size(); }
     int getPinIdx(int u) const;
     vector<int>& getVertices(int pinIdx) { return pinToVertex[pinIdx]; }
+    bool isFakePin(int u) const { return fakePins.find(u) != fakePins.end(); }
 
     void writeDebugFile(const std::string& fn) const;
 
@@ -40,6 +41,7 @@ private:
     // vertex properties
     std::unordered_map<int, int> vertexToPin;  // vertexIdx to pinIdx
     vector<vector<int>> pinToVertex;
+    std::unordered_set<int> fakePins;  // diff-layer access point
     vector<db::GridPoint> vertexToGridPoint;
     vector<bool> minAreaFixable;
 

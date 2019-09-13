@@ -191,7 +191,7 @@ public:
 
 	//! @Author Mateus
 	//! @brief Returns the usage of the pins
-	PinUse getUse() const;
+	Use getUse() const;
 	
 	//! @Author Mateus 
 	//! @brief Returns true if the pin is used for power or ground or false

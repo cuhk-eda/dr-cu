@@ -1,6 +1,6 @@
 // *****************************************************************************
 // *****************************************************************************
-// Copyright 2012 - 2014, Cadence Design Systems
+// Copyright 2012 - 2017, Cadence Design Systems
 // 
 // This  file  is  part  of  the  Cadence  LEF/DEF  Open   Source
 // Distribution,  Product Version 5.8. 
@@ -33,6 +33,7 @@
 #include <cstring>
 #include <string>
 #include <map>
+#include <set>
 
 #include "lefrReader.hpp"
 
@@ -46,13 +47,40 @@ struct lefCompareCStrings
 };
 
 typedef std::map<const char*, int, lefCompareCStrings>  lefKeywordMap;
+typedef std::map<int, int>                              MsgsDisableMap;
+
+typedef std::set<std::string>               StringSet;
+
+class lefrProps {
+public:
+    lefiPropType  lefrCompProp; 
+    lefiPropType  lefrLayerProp; 
+    lefiPropType  lefrLibProp; 
+    lefiPropType  lefrMacroProp; 
+    lefiPropType  lefrNondefProp; 
+    lefiPropType  lefrPinProp; 
+    lefiPropType  lefrViaProp; 
+    lefiPropType  lefrViaRuleProp; 
+};
 
 class lefrSettings {
 public:
-    lefrSettings();
+                    lefrSettings();
 
-    void init_symbol_table();
-    static void reset();
+    void            init_symbol_table();
+    static void     reset();
+    void            addLef58Type(const char *lef58Type, 
+                                 const char **layerType);
+
+    std::string     getLayerLef58Types(const char *type) const;
+
+    void            disableMsg(int msgId);
+    void            enableMsg(int msgId);
+    void            enableAllMsgs();
+    int             suppresMsg(int msgId);
+
+    static std::string     getToken(const std::string   &input, 
+                                    int                 &startIdx);
 
     lefKeywordMap       Keyword_set; 
 
@@ -102,6 +130,8 @@ public:
     int TotalMsgLimit;
     lefiUserData UserData;
 
+    StringSet Lef58TypePairs;
+
     LEFI_MALLOC_FUNCTION MallocFunction;
     LEFI_REALLOC_FUNCTION ReallocFunction;
     LEFI_FREE_FUNCTION FreeFunction;
@@ -111,6 +141,10 @@ public:
 
     int MsgLimit[MAX_LEF_MSGS];
 
+    MsgsDisableMap msgsDisableMap;
+    int  dAllMsgs; 
+
+    lefrProps lefProps;
 };
 
 extern lefrSettings* lefSettings;

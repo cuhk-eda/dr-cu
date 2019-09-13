@@ -35,7 +35,7 @@ private:
 
 	// Mateus @ 20180917: Adding PinUse
 	// pin name, pin direction
-	std::vector<std::tuple<std::string, Direction, PinUse>> pins;
+	std::vector<std::tuple<std::string, Direction, Use>> pins;
 	
 	// from -> to
 	std::vector<std::tuple<std::string, std::string>> arcs;
@@ -47,7 +47,7 @@ public:
 	} // end method
 	
 	// Mateus @ 20180917: Adding PinUse
-	void addPin(const std::string &name, const Direction &direction, const PinUse& pinUse = UNKNOWN_USE) {
+	void addPin(const std::string &name, const Direction &direction, const Use& pinUse = UNKNOWN_USE) {
 		pins.push_back(std::make_tuple(name, direction, pinUse));
 	} // end method
 	

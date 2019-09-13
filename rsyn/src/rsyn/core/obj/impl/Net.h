@@ -181,8 +181,8 @@ Net::hasSink() const {
 
 inline
 Range<CollectionOfPins>
-Net::allPins() const {
-	return CollectionOfPins(data->pins);
+Net::allPins(bool filterPG) const {
+	return CollectionOfPins(data->pins, filterPG);
 } // end method
 
 // -----------------------------------------------------------------------------
@@ -270,6 +270,22 @@ inline
 void
 NetTag::setIdeal(const bool value) {
 	data->ideal = value;
+} // end method
+
+// -----------------------------------------------------------------------------
+
+inline
+Use
+Net::getUse() const {
+	return data->netUse;
+} // end method
+
+// -----------------------------------------------------------------------------
+
+inline
+void
+Net::setUse(const Use use) {
+	data->netUse = use;
 } // end method
 
 } // end namespace

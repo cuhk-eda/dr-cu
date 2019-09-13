@@ -22,16 +22,13 @@
 
 // Services
 #include "rsyn/phy/PhysicalService.h"
-#include "rsyn/io/writer/Writer.h"
 #include "rsyn/ispd18/RoutingGuide.h"
 
 // Registration
 namespace Rsyn {
 void Session::registerServices() {
 	registerService<Rsyn::PhysicalService>("rsyn.physical");
-	registerService<Rsyn::Writer>("rsyn.writer");
 	registerService<Rsyn::RoutingGuide>("rsyn.routingGuide");
-	registerService<Rsyn::WriterDEF>("rsyn.writerDEF");
 } // end method
 } // end namespace
 

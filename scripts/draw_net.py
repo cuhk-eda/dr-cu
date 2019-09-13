@@ -79,8 +79,8 @@ for file_name in args.input_file_names:
     cmap = plt.get_cmap('plasma')
     colors = [cmap(i / (numLayers - 1)) for i in range(0, numLayers)]
     hatches = ['--', '||', '//', '\\', '++', 'xx', 'oo', 'OO', '..', '**']
-    labels = ['M{} '.format(i+1) + ('horizontal' if args.m1_direction ==
-                                    'horizontal' and i % 2 == 0 else "vertical") for i in range(0, numLayers)]
+    horiOffset = 0 if args.m1_direction == 'horizontal' else 1
+    labels = ['M{} '.format(i+1) + ('horizontal' if i % 2 == horiOffset else "vertical") for i in range(0, numLayers)]
     def plotBox(box):
         plt.gca().add_patch(plt.Rectangle((box.lx, box.ly), box.w(), box.h(), lw=1,
                                         edgecolor='k', facecolor=colors[box.layer], alpha=0.3, hatch=hatches[box.layer], label=labels[box.layer]))

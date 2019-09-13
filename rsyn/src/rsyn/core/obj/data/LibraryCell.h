@@ -34,6 +34,7 @@ struct LibraryCellData : ObjectData {
 	std::string name;
 	std::vector<LibraryPin> pins;
 	std::vector<LibraryArc> arcs;
+	DBUxy size;
 
 	// User flags.
 	LibraryCellTagData tag;
@@ -47,7 +48,8 @@ struct LibraryCellData : ObjectData {
 		design(nullptr),
 		numInputPins(0),
 		numOutputPins(0), 
-		numInOutPins(0) {
+		numInOutPins(0),
+		size(0, 0) {
 	} // constructor
 }; // end struct
 

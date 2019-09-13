@@ -266,9 +266,11 @@ public:
 	std::vector<PhysicalRegion> & allPhysicalRegions() const;
 
 	//! @brief	Returns the total number of group objects.  
-	std::size_t getNumPhysicalGroups() const;
+	std::size_t getNumPhysicalGroups() const noexcept;
 	//! @brief	Returns a reference to the range list of PhysicalGroup. 
 	std::vector<PhysicalGroup> & allPhysicalGroups() const;
+	//! @brief	Returns the total number of physical special nets.  
+	std::size_t getNumPhysicalSpecialNets() const noexcept;
 	//! @brief Returns a constant reference to a vector of physical special nets.
 	std::vector<PhysicalSpecialNet> & allPhysicalSpecialNets() const;
 
@@ -318,11 +320,13 @@ public: // Temporary for the contest debug
 	void addPhysicalNet(const DefNetDscp & netDscp);
 protected:
 	//! @brief Initializes Rsyn::PhysicalSpecialNet into Ryn::PhysicalDesign.
-	void addPhysicalSpecialNet(const DefSpecialNetDscp & specialNet);
+	void addPhysicalSpecialNet(const DefNetDscp & specialNet);
 	//! @brief Adds a track.
 	void addPhysicalTracks(const DefTrackDscp &track);
 	//! @brief Inits routing grid
 	void initRoutingGrid();
+	//! @brief Adds a gcell.
+	void addPhysicalGCell(const DefGcellGridDscp &gcell);
 	//! @brief Adds design via.
 	void addPhysicalDesignVia(const DefViaDscp & via);
 	//! @brief initializes the Rsyn::PhysicalSpacing objects into Rsyn::PhysicalDesign.
@@ -399,7 +403,31 @@ public:
 	void placeCell(Rsyn::Cell cell, const DBUxy pos,
 		Rsyn::PhysicalOrientation orient = ORIENTATION_INVALID,
 		const bool dontNotifyObservers = false);
-	
+        
+        //Place Port 
+        
+        Rsyn::PhysicalOrientation checkOrientation(Rsyn::PhysicalPort physicalPort, 
+                const DBU x, const DBU y);
+        
+        DBUxy checkPosition(const DBU x, const DBU y);
+        
+        bool getPhysicalPortByName(std::string name, Rsyn::PhysicalPort &phPort);
+        
+        void placePort(Rsyn::PhysicalPort physicalPort, const DBU x, const DBU y, 
+                Rsyn::PhysicalOrientation orient = ORIENTATION_INVALID,
+                const bool disableSnapping = false, const bool dontNotifyObservers = false);
+        
+        void placePort(Rsyn::Port port, const DBU x, const DBU y,
+                Rsyn::PhysicalOrientation orient = ORIENTATION_INVALID,
+		const bool disableSnapping = false, const bool dontNotifyObservers = false);
+        
+        void placePort(Rsyn::PhysicalPort physicalPort, const DBUxy pos,
+		Rsyn::PhysicalOrientation orient = ORIENTATION_INVALID,
+		const bool disableSnapping = false, const bool dontNotifyObservers = false);
+        
+        void placePort(Rsyn::Port port, const DBUxy pos,
+		Rsyn::PhysicalOrientation orient = ORIENTATION_INVALID,
+		const bool disableSnapping = false, const bool dontNotifyObservers = false);
 	
 	//! @brief set cell orientation.
 	//! @warning Caution when using dontNotifyObservers.

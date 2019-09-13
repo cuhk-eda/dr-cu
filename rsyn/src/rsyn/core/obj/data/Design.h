@@ -24,6 +24,7 @@ struct DesignData {
 	List<PinData> pins;
 	List<ArcData> arcs;
 	List<NetData> nets;
+        List<Cell> cells;
 	
 	List<LibraryCellData> libraryCells;
 	List<LibraryPinData> libraryPins;

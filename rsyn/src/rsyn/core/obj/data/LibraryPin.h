@@ -21,7 +21,7 @@ struct LibraryPinData : ObjectData {
 	std::string name;
 	Direction direction;
 	// Mateus @ 20180917: Adding PinUse
-	PinUse pinUse;
+	Use pinUse;
 	int index;
 
 	LibraryPinData() : 

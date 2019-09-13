@@ -1,6 +1,6 @@
 // *****************************************************************************
 // *****************************************************************************
-// Copyright 2013, Cadence Design Systems
+// Copyright 2013 - 2017, Cadence Design Systems
 // 
 // This  file  is  part  of  the  Cadence  LEF/DEF  Open   Source
 // Distribution,  Product Version 5.8. 
@@ -21,8 +21,8 @@
 // check www.openeda.org for details.
 // 
 //  $Author: icftcm $
-//  $Revision: #1 $
-//  $Date: 2014/02/10 $
+//  $Revision: #2 $
+//  $Date: 2017/06/19 $
 //  $State:  $
 // *****************************************************************************
 // *****************************************************************************
@@ -37,6 +37,8 @@
 
 BEGIN_LEFDEF_PARSER_NAMESPACE
 
+class defrData;
+
 /* Return codes for defiNet::viaOrient 
     DEF_ORIENT_N  0
     DEF_ORIENT_W  1
@@ -50,7 +52,7 @@ BEGIN_LEFDEF_PARSER_NAMESPACE
 
 class defiWire {
 public:
-  defiWire();
+  defiWire(defrData *data);
   ~defiWire();
 
   void Init(const char* type, const char* wireShieldName);
@@ -65,21 +67,23 @@ public:
   defiPath*   path(int index);
   const defiPath*   path(int index) const;
 
-  void bumpPaths(int size);
+  void bumpPaths(long long size);
 
 protected:
   char*      type_;
   char*      wireShieldName_;    // It only set from specialnet SHIELD, 5.4
   int        numPaths_;
-  int        pathsAllocated_;
+  long long  pathsAllocated_;
   defiPath** paths_;
+
+  defrData  *defData;
 };
 
 
 
 class defiSubnet {
 public:
-  defiSubnet();
+  defiSubnet(defrData *data);
   void Init();
 
   void Destroy();
@@ -126,40 +130,42 @@ public:
   defiWire*   wire(int index);
   const defiWire*   wire(int index) const;
 
-  void bumpName(int size);
-  void bumpPins(int size);
-  void bumpPaths(int size);
+  void bumpName(long long size);
+  void bumpPins(long long  size);
+  void bumpPaths(long long  size);
   void clear();
 
 protected:
-  char* name_;            // name.
-  int nameSize_;          // allocated size of name.
-  int numPins_;           // number of pins used in array.
-  int pinsAllocated_;     // number of pins allocated in array.
-  char** instances_;      // instance names for connections
-  char** pins_;           // pin names for connections
-  char* synthesized_;     // synthesized flags for pins
-  char* musts_;           // must-join flags
+  char*         name_;            // name.
+  int           nameSize_;          // allocated size of name.
+  int           numPins_;           // number of pins used in array.
+  long long     pinsAllocated_;     // number of pins allocated in array.
+  char**        instances_;      // instance names for connections
+  char**        pins_;           // pin names for connections
+  char*         synthesized_;     // synthesized flags for pins
+  char*         musts_;           // must-join flags
 
   // WMD -- the following will be removed by the next release
-  char isFixed_;        // net type
-  char isRouted_;
-  char isCover_;
-  defiPath** paths_;   // paths for this subnet
-  int numPaths_;       // number of paths used
-  int pathsAllocated_; // allocated size of paths array
+  char       isFixed_;        // net type
+  char       isRouted_;
+  char       isCover_;
+  defiPath** paths_;          // paths for this subnet
+  int        numPaths_;       // number of paths used
+  long long  pathsAllocated_; // allocated size of paths array
 
-  int numWires_;          // number of wires defined in the subnet
-  int wiresAllocated_;    // number of wires allocated in the subnet
-  defiWire** wires_;      // this replace the paths
-  char* nonDefaultRule_;
+  int        numWires_;          // number of wires defined in the subnet
+  long long  wiresAllocated_;    // number of wires allocated in the subnet
+  defiWire** wires_;             // this replace the paths
+  char*      nonDefaultRule_;
+
+  defrData *defData;
 };
 
 
 
 class defiVpin {
 public:
-  defiVpin();
+  defiVpin(defrData *data);
   ~defiVpin();
 
   void Init(const char* name);
@@ -193,6 +199,8 @@ protected:
   int yLoc_;
   char* name_;
   char* layer_;
+
+  defrData *defData;
 };
 
 
@@ -200,7 +208,7 @@ protected:
 // Pre 5.4
 class defiShield {
 public:
-  defiShield();
+  defiShield(defrData *data);
   ~defiShield();
 
   void Init(const char* name);
@@ -214,13 +222,15 @@ public:
   defiPath*         path(int index);
   const defiPath*   path(int index) const;
 
-  void bumpPaths(int size);
+  void bumpPaths(long long size);
 
 protected:
   char*      name_;
   int        numPaths_;
-  int        pathsAllocated_;
+  long long  pathsAllocated_;
   defiPath** paths_;
+
+  defrData *defData;
 };
 
 
@@ -229,7 +239,7 @@ protected:
 // Struct holds the data for one component.
 class defiNet {
 public:
-  defiNet();
+  defiNet(defrData *data);
   void Init();
 
   void Destroy();
@@ -423,12 +433,12 @@ public:
   void print(FILE* f) const;
 
 
-  void bumpName(int size);
-  void bumpPins(int size);
-  void bumpProps(int size);
-  void bumpSubnets(int size);
-  void bumpPaths(int size);
-  void bumpShieldNets(int size);
+  void bumpName(long long size);
+  void bumpPins(long long size);
+  void bumpProps(long long size);
+  void bumpSubnets(long long size);
+  void bumpPaths(long long  size);
+  void bumpShieldNets(long long size);
 
   // The method freeWire() is added is user select to have a callback
   // per wire within a net This is an internal method and is not public
@@ -441,16 +451,16 @@ public:
   void clearVia();
 
 protected:
-  char* name_;          // name.
-  int nameSize_;        // allocated size of name.
-  int numPins_;         // number of pins used in array.
-  int pinsAllocated_;   // number of pins allocated in array.
-  char** instances_;    // instance names for connections
-  char** pins_;         // pin names for connections
-  char* musts_;         // must-join flags for pins
-  char* synthesized_;   // synthesized flags for pins
-  int weight_;          // net weight
-  char hasWeight_;      // flag for optional weight
+  char*     name_;          // name.
+  int       nameSize_;      // allocated size of name.
+  int       numPins_;       // number of pins used in array.
+  long long pinsAllocated_; // number of pins allocated in array.
+  char**    instances_;     // instance names for connections
+  char**    pins_;          // pin names for connections
+  char*     musts_;         // must-join flags for pins
+  char*     synthesized_;   // synthesized flags for pins
+  int       weight_;        // net weight
+  char      hasWeight_;     // flag for optional weight
 
   // WMD -- the following will be removed by the nex release
   char isFixed_;        // net type
@@ -465,14 +475,15 @@ protected:
   char**  propValues_;  // Prop values All in strings!
   double* propDValues_; // Prop values in numbers!
   char*   propTypes_;   // Prop types, 'I' - Integer, 'R' - Real, 'S' - String
-  int propsAllocated_;  // allocated size of props array
-  int numSubnets_;      // num of subnets in array
-  defiSubnet** subnets_; // Prop names
-  int subnetsAllocated_; // allocated size of props array
-  double cap_;           // cap value
-  char* source_;
-  int    fixedbump_;     // 5.4.1
-  double frequency_;     // 5.4.1
+
+  long long    propsAllocated_;   // allocated size of props array
+  int          numSubnets_;       // num of subnets in array
+  defiSubnet** subnets_;          // Prop names
+  long long    subnetsAllocated_; // allocated size of props array
+  double       cap_;              // cap value
+  char*        source_;
+  int          fixedbump_;     // 5.4.1
+  double       frequency_;     // 5.4.1
   char* pattern_;
   char* original_;
   char* use_;
@@ -480,54 +491,54 @@ protected:
   int   style_;
 
   // WMD -- the following will be removed by the nex release
-  defiPath** paths_;   // paths for this subnet
-  int numPaths_;       // number of paths used
-  int pathsAllocated_; // allocated size of paths array
+  defiPath** paths_;          // paths for this subnet
+  int        numPaths_;       // number of paths used
+  long long  pathsAllocated_; // allocated size of paths array
 
   double voltage_;
 
-  int numWires_;         // number of wires defined in the net
-  int wiresAllocated_;   // allocated size of wire paths array
-  defiWire** wires_;     // this replace the paths
+  int         numWires_;         // number of wires defined in the net
+  long long   wiresAllocated_;   // allocated size of wire paths array
+  defiWire**  wires_;            // this replace the paths
 
-  int widthsAllocated_;
-  int numWidths_;
-  char** wlayers_;
-  double* wdist_;
+  long long   widthsAllocated_;
+  int         numWidths_;
+  char**      wlayers_;
+  double*     wdist_;
 
-  int spacingAllocated_;
-  int numSpacing_;
-  char** slayers_;
-  double* sdist_;
-  double* sleft_;
-  double* sright_;
-  int xTalk_;
+  long long   spacingAllocated_;
+  int         numSpacing_;
+  char**      slayers_;
+  double*     sdist_;
+  double*     sleft_;
+  double*     sright_;
+  int         xTalk_;
 
-  int numVpins_;
-  int vpinsAllocated_;
-  defiVpin** vpins_;
+  int         numVpins_;
+  long long   vpinsAllocated_;
+  defiVpin**  vpins_;
 
-  int numShields_;            // number of SHIELD paths used
-  int shieldsAllocated_;      // allocated size of SHIELD paths array
-  defiShield** shields_;      // SHIELD data 
-  int numNoShields_;          // number of NOSHIELD paths used
+  int          numShields_;            // number of SHIELD paths used
+  long long    shieldsAllocated_;      // allocated size of SHIELD paths array
+  defiShield** shields_;               // SHIELD data 
+  int          numNoShields_;          // number of NOSHIELD paths used
 
-  int numShieldNet_;          // number of SHIELDNETS used in array.
-  int shieldNetsAllocated_;   // number of SHIELDNETS allocated in array.
-  char** shieldNet_;          // name of the SHIELDNET
+  int          numShieldNet_;          // number of SHIELDNETS used in array.
+  long long    shieldNetsAllocated_;   // number of SHIELDNETS allocated in array.
+  char**       shieldNet_;             // name of the SHIELDNET
 
-  int numPolys_;                    // 5.6
-  char** polygonNames_;             // 5.6 layerName for POLYGON
-  int polysAllocated_;              // 5.6
-  struct defiPoints** polygons_;    // 5.6
-  int*   polyMasks_;
+  int          numPolys_;              // 5.6
+  char**       polygonNames_;          // 5.6 layerName for POLYGON
+  long long    polysAllocated_;        // 5.6
+  struct defiPoints** polygons_;       // 5.6
+  int*         polyMasks_;
   char** polyRouteStatus_;
   char** polyShapeTypes_;
   char** polyRouteStatusShieldNames_;
 
-  int numRects_;                    // 5.6
-  int rectsAllocated_;              // 5.6
-  char** rectNames_;                // 5.6
+  int        numRects_;                    // 5.6
+  long long  rectsAllocated_;              // 5.6
+  char**     rectNames_;                   // 5.6
   int* xl_;
   int* yl_;
   int* xh_;
@@ -539,16 +550,17 @@ protected:
   
 
   struct defiPoints** viaPts_;      // 5.8                  
-  char** viaNames_;                   
-  int   numPts_;                    
-  int   ptsAllocated_;
-  int*  viaOrients_;
-  int*  viaMasks_;
-  char** viaRouteStatus_;
-  char** viaRouteStatusShieldNames_;
-  char** viaShapeTypes_;
-};
+  char**              viaNames_;                   
+  int                 numPts_;                    
+  long long           ptsAllocated_;
+  int*                viaOrients_;
+  int*                viaMasks_;
+  char**              viaRouteStatus_;
+  char**              viaRouteStatusShieldNames_;
+  char**              viaShapeTypes_;
 
+  defrData *defData;
+};
 
 END_LEFDEF_PARSER_NAMESPACE
 

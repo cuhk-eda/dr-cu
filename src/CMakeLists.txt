@@ -6,20 +6,20 @@
 cmake_minimum_required(VERSION 2.8)
 
 # Message
-message(STATUS "ISPD18 DR CUHK")
+message(STATUS "ISPD19 DR CUHK")
 message(STATUS ${CMAKE_CURRENT_SOURCE_DIR})
 
 # Find includes in the build directories
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
 # Project's name
-project(ispd18dr)
+project(ispd19dr)
 
 # Set the output folder where your program will be created
 set(EXECUTABLE_OUTPUT_PATH ${CMAKE_BINARY_DIR})
 set(LIBRARY_OUTPUT_PATH ${CMAKE_BINARY_DIR})
 
-set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD 14)
 
 set(PATH_RSYN ${CMAKE_CURRENT_SOURCE_DIR}/../rsyn)
 set(PATH_ISPD18 ${CMAKE_CURRENT_SOURCE_DIR})
@@ -33,9 +33,8 @@ set(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -Werror=return-type")
 ######################
 # Check Dependencies #
 ######################
-# set(Boost_USE_STATIC_LIBS ON)
+set(Boost_USE_STATIC_LIBS ON)
 find_package(Boost COMPONENTS system filesystem program_options REQUIRED)
-# find_package(Threads)
 
 ###############
 # Source Code #
@@ -66,7 +65,7 @@ endif()
 # Targets #
 ###########
 
-add_executable(ispd18dr ${SRC_FILES})
+add_executable(ispd19dr ${SRC_FILES})
 
 #######################
 # Include Directories #
@@ -82,15 +81,15 @@ include_directories(${PATH_ISPD18})
 #################
 
 # TODO: set static under release mode only
-set_target_properties(ispd18dr PROPERTIES LINK_FLAGS "-static -Wl,--whole-archive -rdynamic -lpthread -Wl,--no-whole-archive")
+set_target_properties(ispd19dr PROPERTIES LINK_FLAGS "-static -Wl,--whole-archive -rdynamic -lpthread -Wl,--no-whole-archive")
 
 # Threads
-# target_link_libraries(ispd18dr ${CMAKE_THREAD_LIBS_INIT})
+# target_link_libraries(ispd19dr ${CMAKE_THREAD_LIBS_INIT})
 
 # LEF/DEF
-target_link_libraries(ispd18dr lef)
-target_link_libraries(ispd18dr def)
+target_link_libraries(ispd19dr lef)
+target_link_libraries(ispd19dr def)
 
 # Boost
-target_include_directories(ispd18dr PUBLIC ${Boost_INCLUDE_DIR})
-target_link_libraries(ispd18dr ${Boost_LIBRARIES})
+target_include_directories(ispd19dr PUBLIC ${Boost_INCLUDE_DIR})
+target_link_libraries(ispd19dr ${Boost_LIBRARIES})

@@ -27,6 +27,7 @@ friend class Cell;
 friend class Sandbox;
 friend class SandboxPin;
 friend class SandboxCell;
+friend class PhysicalDesign;
 
 private:
 	LibraryCell(LibraryCellData * data) : Proxy(data) {}
@@ -134,6 +135,25 @@ public:
 	//! @note  This is a user-defined flag. If the flag was not set, an exception
 	//!        is raised.
 	bool isBuffer(const BufferType type) const;
+
+	// Physical
+	// --------
+
+	//! @brief Returns the Instance height.
+	DBU getHeight() const;
+
+	//! @brief Returns the Instance width.
+	DBU getWidth() const;
+
+	//! @brief Returns the size of this library cell.
+	DBUxy getSize() const;
+
+	//! @brief Returns the size of the library cell in a given dimension.
+	DBU getSize(const Dimension dimension) const;
+
+	//! @brief Returns the area of this library cell.
+	DBU getArea() const;
+
 }; // end class
 
 // =============================================================================

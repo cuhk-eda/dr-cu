@@ -260,6 +260,36 @@ LibraryCell::isBuffer(const BufferType type) const {
 	} // end switch
 } // end method
 
+// -----------------------------------------------------------------------------
+
+inline DBU LibraryCell::getHeight() const {
+	return data->size[Y];
+} // end method
+
+// -----------------------------------------------------------------------------
+
+inline DBU LibraryCell::getWidth() const {
+	return data->size[X];
+} // end method
+
+// -----------------------------------------------------------------------------
+
+inline DBUxy LibraryCell::getSize() const {
+	return data->size;
+} // end method
+
+// -----------------------------------------------------------------------------
+
+inline DBU LibraryCell::getSize(const Dimension dimension) const {
+	return data->size[dimension];
+} // end method
+
+// -----------------------------------------------------------------------------
+
+inline DBU LibraryCell::getArea() const {
+	return getWidth() * getHeight();
+} // end method
+
 // =============================================================================
 // Tag
 // =============================================================================

@@ -40,7 +40,6 @@ public:
 	std::vector<Rsyn::PhysicalObstacle> clsObs;
 	Polygon clsPolygonBounds;
 	Rsyn::PhysicalObstacle clsTopLayerObs;
-	Rsyn::PhysicalSymmetry clsSymmetry = Rsyn::PhysicalSymmetry::SYMMETRY_INVALID;
 	PhysicalLibraryCellData() = default;
 
 }; // end class 

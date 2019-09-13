@@ -40,6 +40,7 @@ class LayerGuide {
 protected:
 	Rsyn::PhysicalLayer  clsPhLayer;
 	Bounds clsBounds;
+        int clsId;
 public:
 	LayerGuide() = default;
 	const Bounds & getBounds() const { 
@@ -48,6 +49,20 @@ public:
 	Rsyn::PhysicalLayer getLayer() const {
 		return clsPhLayer;
 	} // end method 
+        int getId() const 
+        {
+            return clsId;
+        }
+        void setBounds(Bounds bounds) {
+            clsBounds = bounds;
+        } // end method 
+        void setLayer(Rsyn::PhysicalLayer layer) {
+            clsPhLayer = layer;
+        } // end method 
+        void setId(int id)
+        {
+            clsId = id;
+        }//end method 
 }; // end class
 
 class NetGuide {
@@ -56,9 +71,23 @@ protected:
 	std::vector<LayerGuide> clsLayerGuides;
 public:
 	NetGuide() = default;
+        const LayerGuide& getGuide(int id) const { 
+            if(id > clsLayerGuides.size())
+            {
+                std::cout << "Invalid access to net guide";
+                std::cout << "layer guide vector size is: " << clsLayerGuides.size()
+                        << ", index is: " << id << std::endl;
+                getchar();
+            }//
+            return clsLayerGuides[id];
+	} // end method 
 	const std::vector<LayerGuide> & allLayerGuides() const { 
 		return clsLayerGuides;
 	} // end method 
+        
+        void setLayerGuides(std::vector<LayerGuide> guides) {
+            clsLayerGuides = guides;
+        }
 }; // end class 
 
 } // end namespace 

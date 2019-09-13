@@ -99,7 +99,7 @@ public:
 	//! @brief Returns an iterable collection of the pins connected to this
 	//!        net.
 	Range<CollectionOfPins>
-	allPins() const;
+	allPins(bool filterPG = true) const;
 
 	//! @brief Returns an iterable collection of the pins of a given direction
 	//!        connected to this net.
@@ -128,6 +128,14 @@ public:
 	//! @note  This is a user-defined flag. If the flag was not set, an exception
 	//!        is raised.
 	NetTypeTag getNetTypeTag() const;
+
+	//! @Author Mateus
+	//! @brief Returns the usage of the net
+	Use getUse() const;
+	
+	//! @Author Mateus
+	//! @brief Returns the usage of the net
+	void setUse(const Use use);
 }; // end class
 
 // =============================================================================

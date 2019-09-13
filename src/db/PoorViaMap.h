@@ -1,6 +1,6 @@
 #pragma once
 
-#include "global.h"
+#include "RouteGrid.h"
 
 namespace db {
 
@@ -8,10 +8,11 @@ class RouteGrid;
 
 class ViaData {
 public:
+    virtual ~ViaData() = default;
     virtual bool allow(int netIdx) const = 0;
     virtual void setAllowNets(const std::unordered_set<int>& netIdxs){};
     virtual void setAllowNet(int netIdx){};
-    virtual int getAllowNet() { return -1; };  // should never be called
+    virtual int getAllowNet() { return OBS_NET_IDX; };  // should never be called
 
     bool isNonDefaultOnly() const { return nonDefaultOnly; }
     bool nonDefaultOnly;  // none of the allow net can use default via
@@ -67,15 +68,8 @@ private:
     const vector<bool>& usePoorViaMap;
     const RouteGrid& routeGrid;
 
-    void initViaDataBase(int layerIdx,
-                         int botTrackIdx,
-                         int topTrackIdx,
-                         std::unordered_set<int>& allowNetIdxs,
-                         bool& allAllow,
-                         bool& nonDefaultOnly);
     void printPoorViaMapInfo();
 
-    void initPoorViaMap();
     void initPoorViaMapFast(const vector<std::pair<BoxOnLayer, int>>& fixObjects);
 };
 

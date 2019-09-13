@@ -28,6 +28,7 @@
 
 namespace Rsyn {
 
+inline const DefNetDscp & PhysicalSpecialNet::getNet() const { return data->clsNet; }
 
 // -----------------------------------------------------------------------------
 

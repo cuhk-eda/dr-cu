@@ -125,10 +125,10 @@ enum TieType {
 	ANY_TIE_TYPE
 }; // end enum
 
-// Mateus @ 20180917: Adding PinUse
-//! @brief Describes the usage of a pin
+// Mateus @ 20190204: Refatoring Use
+//! @brief Describes the usage of a pin or a net
 //! @note Compatible with LEF/DEF standard 5.8
-enum PinUse {
+enum Use {
 	UNKNOWN_USE = -1,
 	SIGNAL,
 	POWER,

@@ -20,9 +20,9 @@
 // For updates, support, or to become part of the LEF/DEF Community,
 // check www.openeda.org for details.
 // 
-//  $Author: icftcm $
+//  $Author: dell $
 //  $Revision: #1 $
-//  $Date: 2014/02/10 $
+//  $Date: 2017/06/06 $
 //  $State:  $
 // *****************************************************************************
 // *****************************************************************************
@@ -35,6 +35,7 @@
 
 BEGIN_LEFDEF_PARSER_NAMESPACE
 
+class defrData;
 
 // Placement status for the component.
 // Default is 0
@@ -47,7 +48,7 @@ BEGIN_LEFDEF_PARSER_NAMESPACE
 // Struct holds the data for componentMaskShiftLayers.
 class defiComponentMaskShiftLayer {
 public:
-                defiComponentMaskShiftLayer();
+                defiComponentMaskShiftLayer(defrData *data);
                 ~defiComponentMaskShiftLayer();
 
     void         Init();
@@ -62,13 +63,15 @@ protected:
     int          layersAllocated_;  // allocated size of layers_
     int          numLayers_;        // number of places used in layers_
     char**       layers_;
+
+    defrData    *defData;
 };
 
 
 // Struct holds the data for one component.
 class defiComponent {
 public:
-  defiComponent();
+  defiComponent(defrData *defData);
   void Init();
 
   void Destroy();
@@ -87,7 +90,7 @@ public:
                       const char* value, const char type);
   void reverseNetOrder();
   void setWeight(int w);
-  void setMaskShift(int color);
+  void setMaskShift(const char* color);
   void setSource(const char* name);
   void setForeignName(const char* name);
   void setFori(const char* name);
@@ -235,6 +238,8 @@ protected:
   char**  values_;
   double* dvalues_;
   char*   types_;
+
+  defrData *defData;
 };
 
 END_LEFDEF_PARSER_NAMESPACE

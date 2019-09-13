@@ -1,4 +1,4 @@
-/* Copyright 2014-2018 Rsyn
+    /* Copyright 2014-2018 Rsyn
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,7 +19,6 @@
 #include <string>
 
 #include "rsyn/session/Service.h"
-#include "rsyn/session/Process.h"
 #include "rsyn/session/Reader.h"
 
 #include "rsyn/util/Json.h"
@@ -32,7 +31,6 @@ namespace Rsyn {
 class PhysicalDesign;
 
 typedef std::function<Service *()> ServiceInstantiatonFunction;
-typedef std::function<Process *()> ProcessInstantiatonFunction;
 typedef std::function<Reader *()> ReaderInstantiatonFunction;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -53,14 +51,7 @@ struct SessionData {
 	// Generic functions used to instantiate optimizers by name.
 	std::unordered_map<std::string, ServiceInstantiatonFunction> clsServiceInstanciationFunctions;
 	std::unordered_map<std::string, Service *> clsRunningServices;
-	
-	////////////////////////////////////////////////////////////////////////////
-	// Processes
-	////////////////////////////////////////////////////////////////////////////
-	
-	// Generic functions used to instantiate optimizers by name.
-	std::unordered_map<std::string, ProcessInstantiatonFunction> clsProcesses;
-	
+
 	////////////////////////////////////////////////////////////////////////////
 	// Loader
 	////////////////////////////////////////////////////////////////////////////
@@ -79,7 +70,6 @@ struct SessionData {
 	// Configuration
 	////////////////////////////////////////////////////////////////////////////
 	std::string clsInstallationPath;
-	bool clsVerbose = false;
 	
 	////////////////////////////////////////////////////////////////////////////
 	// Misc
@@ -201,9 +191,6 @@ public:
 					"registered.\n";
 			std::exit(1);
 		} else {
-			if (sessionData->clsVerbose) {
-				std::cout << "Registering service '" << name << "' ...\n";
-			} // end if
 			sessionData->clsServiceInstanciationFunctions[name] = []() -> Service *{
 				return new T();
 			};
@@ -261,44 +248,6 @@ private:
 	} /// end method 
 	
 	////////////////////////////////////////////////////////////////////////////
-	// Processes
-	////////////////////////////////////////////////////////////////////////////
-private:
-	static void listProcess(std::ostream & out = std::cout) {
-		out<<"List of registered processes:\n";
-		for(std::pair<std::string, ProcessInstantiatonFunction> process : sessionData->clsProcesses) {
-			out<<"\t"<<process.first<<"\n";
-		} // end for 
-		out<<"--------------------------------------\n";
-	} // end method
-
-	// Register processes.
-	static void registerProcesses();
-
-public:	
-	
-	// Register a process.
-	template<typename T>
-	static void registerProcess(const std::string &name) {
-		auto it = sessionData->clsProcesses.find(name);
-		if (it != sessionData->clsProcesses.end()) {
-			std::cout << "ERROR: Process '" << name << "' was already "
-					"registered.\n";
-			std::exit(1);
-		} else {
-			if (sessionData->clsVerbose) {
-				std::cout << "Registering process '" << name << "' ...\n";
-			} // end if
-			sessionData->clsProcesses[name] = []() -> Process *{
-				return new T();
-			};
-		} // end else
-	} // end method
-	
-	// Run an optimizer.
-	static bool runProcess(const std::string &name, const Rsyn::Json &params = {});
-
-	////////////////////////////////////////////////////////////////////////////
 	// Reader
 	////////////////////////////////////////////////////////////////////////////
 private:
@@ -324,9 +273,6 @@ public:
 					"registered.\n";
 			std::exit(1);
 		} else {
-			if (sessionData->clsVerbose) {
-				std::cout << "Registering reader '" << name << "' ...\n";
-			} // end if
 			sessionData->clsReaders[name] = []() -> Reader *{
 				return new T();
 			};
@@ -353,8 +299,6 @@ public:
 
 private:
 
-	static void addPath(const std::string &path, const bool prepend);
-	static void removePath(const std::string &path);
 	static std::string mergePathAndFileName(const std::string &path, const std::string &fileName);
 
 public:
@@ -376,7 +320,6 @@ public:
 //
 // Rsyn::Startup startup([]{
 //     Rsyn::Session::registerService(...);
-//     Rsyn::Session::registerProcess(...);
 //     Rsyn::Session::registerMessage(...);
 // }); // end startup
 //

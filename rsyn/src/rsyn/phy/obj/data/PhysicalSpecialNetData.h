@@ -32,8 +32,7 @@
 namespace Rsyn {
 class PhysicalSpecialNetData : public PhysicalObject {
 public:
-	std::string clsName = Rsyn::getPhysicalInvalidName();
-
+	DefNetDscp clsNet;
 	
 	PhysicalSpecialNetData() = default;
 }; // end class 

@@ -8,7 +8,7 @@ void LocalNet::initGridBoxes() {
     }
     routeGuides.clear();
     gridRouteGuides.clear();
-    for (int layerIdx = 0; layerIdx < database.getLayerNum(); ++layerIdx) {
+    for (unsigned layerIdx = 0; layerIdx != database.getLayerNum(); ++layerIdx) {
         db::GridBoxOnLayer::sliceGridPolygons(guides[layerIdx]);
         for (const auto& guide : guides[layerIdx]) {
             gridRouteGuides.push_back(guide);
@@ -17,48 +17,11 @@ void LocalNet::initGridBoxes() {
     }
 
     // init gridPinAccessBoxes
-    gridPinAccessBoxes.resize(numOfPins());
-    for (unsigned p = 0; p < numOfPins(); p++) {
-        vector<vector<db::GridBoxOnLayer>> pins(database.getLayerNum());
-        for (auto& pin : pinAccessBoxes[p]) {
-            int dir = database.getLayerDir(pin.layerIdx);
-            DBU pitch = database.getLayer(pin.layerIdx).pitch;
-            // pinForbidRegion
-            auto pinForbidRegion = database.getMetalRectForbidRegion(pin, false);
-            auto gridPinForbidRegion = database.rangeSearch(pinForbidRegion);
-            pins[pin.layerIdx].push_back(gridPinForbidRegion);
-            // One-pitch extension
-            auto pinExtension = pin;
-            for (int d = 0; d < 2; ++d) {
-                pinExtension[d].low -= pitch;
-                pinExtension[d].high += pitch;
-            }
-            auto gridPinExtension = database.rangeSearch(pinExtension);
-            for (int trackIdx = gridPinExtension.trackRange.low; trackIdx <= gridPinExtension.trackRange.high;
-                 ++trackIdx) {
-                for (int cpIdx = gridPinExtension.crossPointRange.low; cpIdx <= gridPinExtension.crossPointRange.high;
-                     ++cpIdx) {
-                    db::GridPoint pt(pin.layerIdx, trackIdx, cpIdx);
-                    if (!gridPinForbidRegion.includePoint(pt) && Dist(pin, database.getLoc(pt)) <= pitch) {
-                        pins[pin.layerIdx].emplace_back(pin.layerIdx,
-                                                        utils::IntervalT<int>{trackIdx, trackIdx},
-                                                        utils::IntervalT<int>{cpIdx, cpIdx});
-                    }
-                }
-            }
-        }
-        pinAccessBoxes[p].clear();
-        gridPinAccessBoxes[p].clear();
-        for (int layerIdx = 0; layerIdx < database.getLayerNum(); ++layerIdx) {
-            if (!pins[layerIdx].empty()) {
-                db::GridBoxOnLayer::sliceGridPolygons(pins[layerIdx]);
-                for (const auto& pin : pins[layerIdx]) {
-                    if (database.isValid(pin)) {
-                        gridPinAccessBoxes[p].push_back(pin);
-                        pinAccessBoxes[p].push_back(database.getLoc(pin));
-                    }
-                }
-            }
+    database.getGridPinAccessBoxes(dbNet, gridPinAccessBoxes);
+    for (unsigned pinIdx = 0; pinIdx != numOfPins(); ++pinIdx) {
+        pinAccessBoxes[pinIdx].clear(); 
+        for (auto& box : gridPinAccessBoxes[pinIdx]) {
+            pinAccessBoxes[pinIdx].push_back(database.getLoc(box));
         }
     }
 
@@ -66,22 +29,12 @@ void LocalNet::initGridBoxes() {
 }
 
 void LocalNet::getRouteGuideMapping() {
-    using point = bg::model::point<DBU, 2, bg::cs::cartesian>;
-    using box = bg::model::box<point>;
-    vector<bgi::rtree<std::pair<box, int>, bgi::quadratic<16>>> rtrees(database.getLayerNum());
-
-    for (unsigned i = 0; i < dbNet.routeGuides.size(); ++i) {
-        const db::BoxOnLayer& routeGuide = dbNet.routeGuides[i];
-        box b(point(routeGuide.x.low, routeGuide.y.low), point(routeGuide.x.high, routeGuide.y.high));
-        rtrees[routeGuide.layerIdx].insert(std::make_pair(b, i));
-    }
-
     dbRouteGuideIdxes.resize(gridRouteGuides.size());
     for (unsigned i = 0; i < dbRouteGuideIdxes.size(); i++) {
         const db::BoxOnLayer& routeGuide = routeGuides[i];
-        box query_box(point(routeGuide.x.low, routeGuide.y.low), point(routeGuide.x.high, routeGuide.y.high));
-        std::vector<std::pair<box, int>> results;
-        rtrees[routeGuide.layerIdx].query(bgi::intersects(query_box), std::back_inserter(results));
+        boostBox query_box(boostPoint(routeGuide.x.low, routeGuide.y.low), boostPoint(routeGuide.x.high, routeGuide.y.high));
+        std::vector<std::pair<boostBox, int>> results;
+        dbNet.routeGuideRTrees[routeGuide.layerIdx].query(bgi::intersects(query_box), std::back_inserter(results));
 
         dbRouteGuideIdxes.reserve(results.size());
 
@@ -136,17 +89,11 @@ bool LocalNet::checkPin() const {
 }
 
 void LocalNet::print() const {
-    db::Net::print();
-
-    // for (int i = 0; i < numOfPins(); ++i) {
-    //     log() << gridPinAccessBoxes[i] << std::endl;
-    // }
+    db::NetBase::print();
 
     log() << "dbRouteGuideIdxes" << std::endl;
     for (unsigned i = 0; i < dbRouteGuideIdxes.size(); i++) {
-        log() << "guide " << i << ": [";
-        for (auto idx : dbRouteGuideIdxes[i]) std::cout << idx << ", ";
-        std::cout << "]" << std::endl;
+        log() << "guide " << i << ": " << dbRouteGuideIdxes[i] << std::endl;
     }
 
     RouteGuideGraph::print();

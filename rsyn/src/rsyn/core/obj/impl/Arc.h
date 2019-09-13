@@ -64,6 +64,15 @@ Arc::getLibraryArc() const {
 // -----------------------------------------------------------------------------
 
 inline
+LibraryCell
+Arc::getLibraryCell() const {
+	Rsyn::LibraryArc larc = getLibraryArc();
+	return larc? larc.getLibraryCell() : nullptr;
+} // end method
+
+// -----------------------------------------------------------------------------
+
+inline
 Pin 
 Arc::getFromPin() const {
 	return data->from;

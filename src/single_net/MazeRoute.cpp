@@ -17,7 +17,7 @@ db::RouteStatus MazeRoute::run() {
     const int startPin = 0;
 
     auto status = route(startPin);
-    if (!isSucc(status)) {
+    if (!db::isSucc(status)) {
         return status;
     }
 
@@ -32,31 +32,21 @@ db::RouteStatus MazeRoute::route(int startPin) {
     auto solComp = [](const std::shared_ptr<Solution> &lhs, const std::shared_ptr<Solution> &rhs) {
         return rhs->cost < lhs->cost || (rhs->cost == lhs->cost && rhs->costUB < lhs->costUB);
     };
-    std::priority_queue<std::shared_ptr<Solution>, vector<std::shared_ptr<Solution>>, decltype(solComp)> solQueue(solComp);
+    std::priority_queue<std::shared_ptr<Solution>, vector<std::shared_ptr<Solution>>, decltype(solComp)> solQueue(
+        solComp);
 
-    // vector<int> visitCnts(graph.getNodeNum(), 0);
-    // int totVisitCnt = 0, maxVisitCnt = 0;
     auto updateSol = [&](const std::shared_ptr<Solution> &sol) {
-        // ++totVisitCnt;
-        // ++visitCnts[sol->vertex];
-        // if (visitCnts[sol->vertex] > maxVisitCnt) {
-        //     maxVisitCnt = visitCnts[sol->vertex];
-        // }
         solQueue.push(sol);
         if (sol->costUB < vertexCostUBs[sol->vertex]) {
             vertexCostUBs[sol->vertex] = sol->costUB;
-            // vertexCostLBs[sol->vertex] = sol->cost;
         }
-        // else if (sol->costUB == vertexCostUBs[sol->vertex] && sol->cost < vertexCostLBs[sol->vertex]) {
-        //     vertexCostLBs[sol->vertex] = sol->cost;
-        // }
     };
 
     // init from startPin
     for (auto vertex : graph.getVertices(startPin)) {
-        DBU minLen = database.getLayer(graph.getGridPoint(vertex).layerIdx).getMinLen();
-        updateSol(
-            std::make_shared<Solution>(graph.getVertexCost(vertex), minLen, graph.getVertexCost(vertex), vertex, nullptr));
+        DBU minLen = graph.isFakePin(vertex) ? 0 : database.getLayer(graph.getGridPoint(vertex).layerIdx).getMinLen();
+        updateSol(std::make_shared<Solution>(
+            graph.getVertexCost(vertex), minLen, graph.getVertexCost(vertex), vertex, nullptr));
     }
     std::unordered_set<int> visitedPin = {startPin};
     int nPinToConnect = localNet.numOfPins() - 1;
@@ -165,7 +155,8 @@ db::RouteStatus MazeRoute::route(int startPin) {
         // mark all the accessbox of the pin to be almost zero
         for (auto vertex : graph.getVertices(dstPinIdx)) {
             if (vertex == dstVertex->vertex) continue;
-            DBU minLen = database.getLayer(graph.getGridPoint(vertex).layerIdx).getMinLen();
+            DBU minLen =
+                graph.isFakePin(vertex) ? 0 : database.getLayer(graph.getGridPoint(vertex).layerIdx).getMinLen();
             updateSol(std::make_shared<Solution>(
                 graph.getVertexCost(vertex), minLen, graph.getVertexCost(vertex), vertex, nullptr));
         }
@@ -174,8 +165,6 @@ db::RouteStatus MazeRoute::route(int startPin) {
         nPinToConnect--;
     }
 
-    // log() << "#node=" << graph.getNodeNum() << ", #edge=" << graph.getEdgeNum() << ", totVisitCnt=" << totVisitCnt
-    //         << ", avgVisitCnt=" << double(totVisitCnt)/graph.getNodeNum() << ", maxVisitCnt=" << maxVisitCnt << endl;
     return db::RouteStatus::SUCC_NORMAL;
 }
 
@@ -197,11 +186,12 @@ void MazeRoute::getResult() {
                 break;
             } else {
                 // get curS
-                auto curS = std::make_shared<db::GridSteiner>(graph.getGridPoint(cur->vertex), graph.getPinIdx(cur->vertex));
+                auto curS = std::make_shared<db::GridSteiner>(
+                    graph.getGridPoint(cur->vertex), graph.getPinIdx(cur->vertex), graph.isFakePin(cur->vertex));
                 if (prevS) {
                     db::GridSteiner::setParent(prevS, curS);
                 }
-                if (curVisited.find(cur->vertex) != curVisited.end()) {
+                if (curVisited.find(cur->vertex) != curVisited.end() && db::setting.singleNetVerbose >= +db::VerboseLevelT::MIDDLE) {
                     printlog("Warning: self loop found in a path for net", localNet.getName(), "for pin", p);
                 }
                 curVisited.emplace(cur->vertex, curS);

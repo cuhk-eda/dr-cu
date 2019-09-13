@@ -8,14 +8,19 @@ Dr. CU is a VLSI detailed routing tool developed by the research team supervised
 
 More details are in the following papers:
 
-* Gengjie Chen, Chak-Wa Pui, Haocheng Li, Jingsong Chen, Bentian Jiang and Evangeline F. Y. Young,
+* Gengjie Chen, Chak-Wa Pui, Haocheng Li, Jingsong Chen, Bentian Jiang, and Evangeline F. Y. Young,
 ["Detailed Routing by Sparse Grid Graph and Minimum-Area-Captured Path Search"](https://doi.org/10.1145/3287624.3287678),
 IEEE/ACM Asia and South Pacific Design Automation Conference (ASPDAC), Tokyo, Japan, Jan 21-24, 2019.
-* Gengjie Chen, Chak-Wa Pui, Haocheng Li and Evangeline F. Y. Young,
+* Gengjie Chen, Chak-Wa Pui, Haocheng Li, and Evangeline F. Y. Young,
 ["Dr. CU: Detailed Routing by Sparse Grid Graph and Minimum-Area-Captured Path Search"](https://doi.org/10.1109/TCAD.2019.2927542),
 accepted by IEEE Transactions on Computer-Aided Design of Integrated Circuits and Systems (TCAD).
+* Haocheng Li, Gengjie Chen, Bentian Jiang, Jingsong Chen, and Evangeline F. Y. Young,
+Dr. CU 2.0: A Scalable Detailed Routing Framework with Correct-by-Construction Design Rule Satisfaction,
+IEEE/ACM International Conference on Computer-Aided Design (ICCAD), Westminster, CO, USA, Nov 4-7, 2019.
 
-(This version of code supports [ISPD'18 benchmarks](http://www.ispd.cc/contests/18/#benchmarks) and is consistent with the TCAD paper.)
+(Dr. CU supports [ISPD'18 benchmarks](http://www.ispd.cc/contests/18/#benchmarks)
+and [ISPD'19 benchmarks](http://www.ispd.cc/contests/19/#benchmarks).
+This version of code is consistent with the ICCAD paper.)
 
 ## 1. How to Build
 
@@ -27,7 +32,7 @@ $ git clone https://github.com/cuhk-route/dr-cu
 **Step 2:** Go to the project root and build by
 ~~~
 $ cd dr-cu
-$ ./scripts/build.py -o release
+$ scripts/build.py -o release
 ~~~
 
 Note that this will generate two folders under the root, `build` and `run` (`build` contains intermediate files for build/compilation, while `run` contains binaries and auxiliary files).
@@ -96,9 +101,10 @@ $ ./run.py <benchmark_name...|all> -s route eval [option...]
 ## 3. Modules
 
 * `ispd18eval`: scripts and other files for evaluation, provided by [ISPD'18 Contest](http://www.ispd.cc/contests/18)
+* `ispd19eval`: scripts and other files for evaluation, provided by [ISPD'19 Contest](http://www.ispd.cc/contests/19)
 * `rsyn`: code from [Rsyn](https://github.com/RsynTeam/rsyn-x) for file IO
 * `scripts`: utility python scripts
-* `src`: c++ source code
+* `src`: C++ source code
     * `db`: database, including the global grid graph and the net information
     * `single_net`: routing a single net, including querying the global grid graph, building the local grid graph, running maze routing, and some post processing
     * `multi_net`: routing all nets with "rip-up and rereoute" and multithreading
@@ -111,20 +117,30 @@ $ ./run.py <benchmark_name...|all> -s route eval [option...]
 Experiments are performed on a 64-bit Linux workstation with Intel Xeon Silver 4114 CPU (2.20GHz, 40 cores) and 256GB memory.
 Consistent with the contest, eight threads are used.
 
-| design            | WL       | # vias  | og WL   | og # vias | ot WL | ot # vias | ww WL  | short area | # min area | # space | total score  | mem (GB)  | time (s) |
-|-------------------|----------|---------|---------|-----------|-------|-----------|--------|------------|------------|---------|--------------|-----------|----------|
-| **ispd18_test1**  | 433254   | 32031   | 1706    | 446       | 393   | 0         | 4749   | 0.4        | 0          | 17      | **296504**   | **0.33**  | **11**   |
-| **ispd18_test2**  | 7806294  | 317160  | 34194   | 5948      | 4937  | 0         | 44495  | 1.3        | 0          | 73      | **4661740**  | **1.70**  | **85**   |
-| **ispd18_test3**  | 8683731  | 307545  | 52408   | 5499      | 5714  | 0         | 45541  | 372.5      | 0          | 161     | **5330014**  | **1.75**  | **113**  |
-| **ispd18_test4**  | 26033480 | 658644  | 132938  | 16103     | 9190  | 0         | 59579  | 436.8      | 6          | 1071    | **15304156** | **3.94**  | **320**  |
-| **ispd18_test5**  | 27729394 | 916715  | 92872   | 16686     | 1588  | 0         | 44680  | 77.4       | 10         | 496     | **16144832** | **5.42**  | **426**  |
-| **ispd18_test6**  | 35595790 | 1403634 | 142595  | 25939     | 8735  | 0         | 69829  | 92.7       | 21         | 587     | **21198243** | **6.48**  | **527**  |
-| **ispd18_test7**  | 64994186 | 2271738 | 235497  | 36269     | 16459 | 0         | 106884 | 230.8      | 38         | 325     | **37724327** | **10.77** | **969**  |
-| **ispd18_test8**  | 65289434 | 2281513 | 290418  | 38596     | 17082 | 0         | 111173 | 249.5      | 20         | 399     | **37990696** | **11.73** | **1034** |
-| **ispd18_test9**  | 54602832 | 2282226 | 284645  | 42078     | 12746 | 0         | 108324 | 162.7      | 28         | 379     | **32592136** | **11.20** | **906**  |
-| **ispd18_test10** | 67907614 | 2439531 | 1137257 | 64535     | 30527 | 0         | 197840 | 11370.4    | 44         | 3910    | **47909940** | **11.95** | **1299** |
+|  design         | WL           | #sv      | og WL      | og #v  | ot WL     | ot #v | ww WL      | #short | short a | #min a | #prl  | #eol | #cut | #adj | #cnr  | #spc | #o |  total score  |  mem (GB) |  time (s) |
+|-----------------|--------------|----------|------------|--------|-----------|-------|------------|--------|---------|--------|-------|------|------|------|-------|------|----|---------------|-----------|-----------|
+| `ispd18_test1`  | 433546.30    | 32402    | 2178.88    | 443    | 414.10    | 0     | 5832.07    | N/A    | 0.11    | 0      | N/A   | N/A  | N/A  | N/A  | N/A   | 2    | 0  | **291291**    | **0.38**  | **14**    |
+| `ispd18_test2`  | 7832686.75   | 325684   | 41335.35   | 6542   | 5292.68   | 0     | 54137.45   | N/A    | 0.12    | 0      | N/A   | N/A  | N/A  | N/A  | N/A   | 57   | 0  | **4700934**   | **1.83**  | **124**   |
+| `ispd18_test3`  | 8717807.31   | 318309   | 74908.60   | 6636   | 5941.85   | 0     | 60458.50   | N/A    | 222.50  | 0      | N/A   | N/A  | N/A  | N/A  | N/A   | 94   | 0  | **5298745**   | **1.99**  | **205**   |
+| `ispd18_test4`  | 26420290.64  | 729312   | 378137.43  | 29895  | 17444.76  | 0     | 205213.27  | N/A    | 245.33  | 93     | N/A   | N/A  | N/A  | N/A  | N/A   | 593  | 0  | **15756404**  | **9.47**  | **1200**  |
+| `ispd18_test5`  | 27801300.46  | 965544   | 150150.75  | 21868  | 5826.66   | 3     | 77342.76   | N/A    | 62.45   | 141    | N/A   | N/A  | N/A  | N/A  | N/A   | 362  | 0  | **16366743**  | **7.06**  | **637**   |
+| `ispd18_test6`  | 35703509.13  | 1480617  | 243107.40  | 36581  | 16482.90  | 16    | 119011.40  | N/A    | 14.40   | 265    | N/A   | N/A  | N/A  | N/A  | N/A   | 542  | 0  | **21630646**  | **6.58**  | **710**   |
+| `ispd18_test7`  | 65173410.39  | 2402543  | 403550.30  | 55532  | 32564.19  | 0     | 186466.07  | N/A    | 164.14  | 357    | N/A   | N/A  | N/A  | N/A  | N/A   | 196  | 0  | **38412191**  | **12.70** | **1413**  |
+| `ispd18_test8`  | 65469076.07  | 2412121  | 404288.83  | 54369  | 32394.17  | 0     | 182631.92  | N/A    | 179.39  | 401    | N/A   | N/A  | N/A  | N/A  | N/A   | 192  | 0  | **38602461**  | **13.54** | **1411**  |
+| `ispd18_test9`  | 54760288.72  | 2410790  | 358490.45  | 55318  | 26357.22  | 0     | 177587.80  | N/A    | 14.83   | 522    | N/A   | N/A  | N/A  | N/A  | N/A   | 109  | 0  | **33129214**  | **11.30** | **1122**  |
+| `ispd18_test10` | 68090186.48  | 2594386  | 1066700.56 | 97600  | 39856.21  | 0     | 236109.72  | N/A    | 2582.10 | 600    | N/A   | N/A  | N/A  | N/A  | N/A   | 918  | 0  | **42704252**  | **11.82** | **2224**  |
+| `ispd19_test1`  | 642583.70    | 36797    | 13538.58   | 1567   | 762.59    | 744   | 11284.83   | 55     | 19.82   | 17     | 10    | 22   | 19   | 5    | 55    | N/A  | 0  | **597403**    | **1.28**  | **150**   |
+| `ispd19_test2`  | 24961335.76  | 811080   | 395795.89  | 34271  | 22002.73  | 23615 | 209929.36  | 1639   | 547.08  | 634    | 965   | 987  | 172  | 94   | 5984  | N/A  | 0  | **21910640**  | **13.81** | **1694**  |
+| `ispd19_test3`  | 842169.62    | 65501    | 12447.07   | 1672   | 1938.80   | 662   | 16236.76   | 74     | 22.92   | 49     | 201   | 125  | 32   | 78   | 108   | N/A  | 0  | **1060034**   | **0.97**  | **62**    |
+| `ispd19_test4`  | 30491193.70  | 1031333  | 568882.56  | 45247  | 15201.72  | 3     | 122369.64  | 2264   | 1783.13 | 37     | 264   | 47   | 0    | 0    | 0     | N/A  | 0  | **22312599**  | **12.09** | **1745**  |
+| `ispd19_test5`  | 4780469.72   | 153504   | 14036.38   | 2688   | 2087.56   | 15    | 15212.36   | 287    | 70.18   | 3      | 144   | 16   | 0    | 0    | 0     | N/A  | 0  | **3297338**   | **1.75**  | **155**   |
+| `ispd19_test6`  | 66066591.23  | 1998487  | 760296.22  | 66862  | 25717.70  | 12468 | 457307.57  | 4022   | 1558.64 | 754    | 1175  | 822  | 377  | 56   | 1235  | N/A  | 0  | **47336856**  | **10.42** | **2836**  |
+| `ispd19_test7`  | 122558107.84 | 4833913  | 883097.59  | 102010 | 45009.73  | 24305 | 607014.34  | 2423   | 899.00  | 1916   | 21733 | 1682 | 753  | 48   | 3512  | N/A  | 0  | **98736640**  | **20.82** | **7165**  |
+| `ispd19_test8`  | 188472592.09 | 7365292  | 1225631.51 | 163218 | 72500.42  | 36390 | 729298.28  | 3048   | 1070.81 | 2830   | 4292  | 2793 | 1266 | 81   | 5903  | N/A  | 0  | **136530155** | **30.96** | **10714** |
+| `ispd19_test9`  | 285390772.80 | 12249476 | 1881593.79 | 276221 | 125462.74 | 60624 | 1213996.98 | 6646   | 1933.66 | 5010   | 6815  | 5157 | 3484 | 133  | 9484  | N/A  | 0  | **214519790** | **49.40** | **15010** |
+| `ispd19_test10` | 282178218.27 | 12544541 | 1821064.92 | 255274 | 127318.93 | 60621 | 1412830.92 | 6879   | 1984.04 | 4855   | 6769  | 4872 | 2990 | 136  | 10429 | N/A  | 0  | **214337743** | **50.72** | **15932** |
 
-(WL for "wirelength", og for "out-of-guide", ot for "off-track", ww for "wrong-way")
+(WL for "wirelength", sv for "single-cut via", og for "out-of-guide", ot for "off-track", ww for "wrong-way")
 
 ## 5. License
 

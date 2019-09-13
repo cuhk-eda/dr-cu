@@ -2,13 +2,13 @@
 
 #include "RouteGuideGraph.h"
 
-class LocalNet : public RouteGuideGraph, public db::Net {
+class LocalNet : public RouteGuideGraph, public db::NetBase {
 public:
-    LocalNet(const db::Net& databaseNet) : dbNet(databaseNet), db::Net(databaseNet) {}
+    LocalNet(const db::Net& databaseNet) : dbNet(databaseNet), db::NetBase(databaseNet) {}
 
     const db::Net& dbNet;
 
-    // note: routeGuides & pinAccessBoxes (inherited from db::Net) may be different from db::Net
+    // note: routeGuides & pinAccessBoxes (inherited from db::NetBase) may be different from db::Net
     // (pinIdx, accessBoxIdx) -> (Grid)BoxOnLayer
     vector<vector<db::GridBoxOnLayer>> gridPinAccessBoxes;
     // guideIdx -> dbGuideIdxes
@@ -24,7 +24,7 @@ public:
     double getWireSegmentPenalty(int guideIdx, int trackIdx, int cpIdx1, int cpIdx2) const;
     int getCrossPointPenalty(int guideIdx, int trackIdx, int cpIdx) const;
 
-    void print() const;  // db::Net::print() + RouteGuideGraph::print()
+    void print() const;  // db::NetBase::print() + RouteGuideGraph::print()
 
 private:
     void getRouteGuideMapping();

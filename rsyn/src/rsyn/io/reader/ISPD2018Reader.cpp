@@ -15,7 +15,6 @@
  
 #include "ISPD2018Reader.h"
 #include <Rsyn/PhysicalDesign>
-#include <Rsyn/PhysicalDesign>
 #include "rsyn/ispd18/Guide.h"
 #include "rsyn/ispd18/RoutingGuide.h"
 #include "rsyn/io/parser/guide-ispd18/GuideParser.h"
@@ -58,13 +57,11 @@ void ISPD2018Reader::parsingFlow() {
 	parseDEFFile();
 	populateDesign();
 	parseGuideFile();
-	initializeAuxiliarInfrastructure();
 } // end method
 
 // -----------------------------------------------------------------------------
 
 void ISPD2018Reader::parseLEFFile() {
-	// Stepwatch watch("Parsing LEF file");
 	LEFControlParser lefParser;
 	lefParser.parseLEF(lefFile, lefDescriptor);
 } // end method
@@ -72,7 +69,6 @@ void ISPD2018Reader::parseLEFFile() {
 // -----------------------------------------------------------------------------
 
 void ISPD2018Reader::parseDEFFile() {
-	// Stepwatch watch("Parsing DEF file");
 	DEFControlParser defParser;
 	defParser.parseDEF(defFile, defDescriptor);
 } // end method
@@ -80,7 +76,6 @@ void ISPD2018Reader::parseDEFFile() {
 // -----------------------------------------------------------------------------
 
 void ISPD2018Reader::parseGuideFile() {
-	// Stepwatch watch("Parsing guide file");
 	GuideDscp guideDescriptor;
 	GuideParser guideParser;
 	guideParser.parse(guideFile, guideDescriptor);
@@ -90,8 +85,6 @@ void ISPD2018Reader::parseGuideFile() {
 } // end method
 
 void ISPD2018Reader::populateDesign() {
-	// Stepwatch watch("Populating the design");
-
 	Rsyn::Design design = session.getDesign();
 
 	Reader::populateRsyn(lefDescriptor, defDescriptor, design);
@@ -106,11 +99,4 @@ void ISPD2018Reader::populateDesign() {
 	physicalDesign.loadDesign(defDescriptor);
 	physicalDesign.updateAllNetBounds(false);
 } // end method
-
-void ISPD2018Reader::initializeAuxiliarInfrastructure() {
-
-	// Start writer service...
-	session.startService("rsyn.writer",{});
-} // end method
-
 } // end namespace

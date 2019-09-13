@@ -371,7 +371,7 @@ Pin::isConnectedToClockNetwork() const {
 // -----------------------------------------------------------------------------
 
 inline
-PinUse
+Use
 Pin::getUse() const {
 	Rsyn::LibraryPin lpin = getLibraryPin();
 	

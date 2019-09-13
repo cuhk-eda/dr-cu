@@ -127,6 +127,9 @@ public:
 	//!        have only one arc.
 	Arc getAnyArc();
 
+	//! @brief Returns the library cell associated to this instance if any.
+	LibraryCell getLibraryCell() const;
+
 	//! @brief Returns the topological index of this instance.
 	//! @note  Since the topological index of an instance may be ambiguous (e.g.
 	//!        for register), some choice needed to be made here. Currently,
@@ -214,48 +217,49 @@ public:
 	//! @see   isFlipped()
 	bool isFlipped() const;
 	
-	//! @brief Returns the x position of the instance.
+	//! @brief Returns the x position (lower-left) of the instance.
 	DBU getX() const;
 
-	//! @brief Returns the y position of the instance.
+	//! @brief Returns the y position (lower-left) of the instance.
 	DBU getY() const;
 
-	//! @brief Returns the Instance height. It is the length of PhysicalInstance boundaries is Y dimension.
+	//! @brief Returns the height of this instance.
 	DBU getHeight() const;
 
-	//! @brief Returns the Instance width. It is the length of PhysicalInstance boundaries is X dimension.
+	//! @brief Returns the width of this instance.
 	DBU getWidth() const;
 
-	//! @brief Returns the length of PhysicalInstance boundaries.
-	//! In X is the length for abscissa (width) while in Y is the length for ordinate (height).
+	//! @brief Returns the size of this instance.
+	//! @note  X is the length for abscissa (width) while in Y is the length for
+	//!        ordinate (height).
 	DBUxy getSize() const;
 
-	//! @brief Returns the length of PhysicalInstance boundaries for given dimension
+	//! @brief Returns the size of this instance.
 	//! @todo Rename to getSize().
 	DBU getSize(const Dimension dimension) const;
 
-	//! @brief Returns the left-lower PhysicalInstance point that is defined as its position.
+	//! @brief Returns the area of this instance.
+	DBU getArea() const;
+
+	//! @brief Returns the lower-left position of this instance.
 	DBUxy getPosition() const;
 
-	//! @brief Returns the left-lower PhysicalInstance point for the given dimension
+	//! @brief Returns the lower-left position of this instance.
 	//! that is defined as its position.
 	DBU getPosition(const Dimension dim) const;
 
-	//! @brief Returns the PhysicalInstance point for the given boundary (LOWER or UPPER).
+	//! @brief Returns the lower-left/upper-right position of this instance.
 	//! @todo remove
 	DBUxy getCoordinate(const Boundary bound) const;
 
-	//! @brief Returns the PhysicalInstance point for the given boundary (LOWER or UPPER) and dimension (X or Y).
+	//! @brief Returns the lower-left/upper-right position of this instance.
 	//! @todo remove
 	DBU getCoordinate(const Boundary bound, const Dimension dim) const;
-
-	//! @brief Returns the length of PhysicalInstance boundaries for given dimension
-	DBU getArea() const;
 
 	//! @brief Returns the central point of the PhysicalInstance boundaries.
 	DBUxy getCenter() const;
 
-	//! @brief Returns the central position of the PhysicalInstance boundaries for the given dimension.
+	//! @brief Returns the center position in a given dimension.
 	DBU getCenter(const Dimension dim) const;
 
 	//! @brief Returns the orientation of the cell.

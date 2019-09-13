@@ -39,6 +39,7 @@ public:
 	bool clsHasRowCol : 1;
 	bool clsHasOrigin : 1;
 	bool clsHasOffset : 1;
+	bool clsHasPattern : 1;
 	bool clsHasCutResistance : 1;
 	ViaType clsType = INVALID_VIA_TYPE;
 	Rsyn::ViaRuleData * clsViaRuleData = nullptr;
@@ -49,6 +50,7 @@ public:
 	DBU clsOffset[NUM_VIA_LEVELS][2]; // bottomXOffset, bottomYOffset, topXOffset, topYOffset
 	int clsNumRows = 0;
 	int clsNumCols = 0;
+    std::string clsPattern = "";
 	float clsCutResistance = 0.0;
 	Rsyn::PhysicalLayerData *clsLayers[NUM_VIA_LAYERS]; // bottom, cut, top
 	std::vector<Rsyn::PhysicalViaGeometry>  clsViaGeometries [NUM_VIA_LAYERS]; // bottom, cut, top
@@ -61,6 +63,7 @@ public:
 		clsHasRowCol = false;
 		clsHasOrigin = false;
 		clsHasOffset = false;
+		clsHasPattern = false;
 		clsHasCutResistance = false;
 	} // end constructor 
 }; // end class 

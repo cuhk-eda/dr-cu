@@ -134,12 +134,12 @@ public:
 class DefWireSegmentDscp {
 public:
 	std::string clsLayerName = INVALID_DEF_NAME;
-	bool clsNew : 1;
 	std::vector<DefRoutingPointDscp> clsRoutingPoints;
-	DBU clsRoutedWidth = 0; // only valid to special nets.
-	DefWireSegmentDscp() {
-		clsNew = false;
-	} // end constructor 
+	//  only valid to special nets.
+	DBU clsRoutedWidth = 0;
+	bool clsHasShape = false;
+	std::string clsShape = "";
+	DefWireSegmentDscp() = default;
 }; // end class 
 
 //! Descriptor for routed wires 
@@ -158,19 +158,11 @@ public:
 class DefNetDscp {
 public:
 	std::string clsName = INVALID_DEF_NAME;
+	bool clsHasUse = false;
+	std::string clsUse = INVALID_DEF_NAME;
 	std::vector<DefNetConnection> clsConnections;
 	std::vector<DefWireDscp> clsWires;
 	DefNetDscp() = default;
-}; // end class 
-
-// -----------------------------------------------------------------------------
-
-// ! Descriptor for DEF Special Nets
-
- class DefSpecialNetDscp {
-public:
-	std::string clsName = INVALID_DEF_NAME;
-	std::vector<DefWireDscp> clsWires;
 }; // end class 
 
 // -----------------------------------------------------------------------------
@@ -221,6 +213,16 @@ public:
 
 // -----------------------------------------------------------------------------
 
+class DefGcellGridDscp {
+public:
+	std::string clsMacro = "";
+	int clsX = 0;
+	int clsXNum = 0;
+	double clsXStep = 0.0;
+	DefGcellGridDscp () = default;
+}; // end class
+
+// -----------------------------------------------------------------------------
 
 class DefViaGeometryDscp {
 public:
@@ -245,7 +247,7 @@ public:
 	bool clsHasRowCol : 1;
 	bool clsHasOrigin : 1;
 	bool clsHasOffset : 1;
-	bool clsHasMask : 1;
+	bool clsHasPattern : 1;
 	DBU clsXOffsetOrigin = 0;
 	DBU clsYOffsetOrigin = 0;
 	DBU clsXCutSize = 0;
@@ -267,14 +269,15 @@ public:
 	std::string clsBottomLayer;
 	std::string clsCutLayer;
 	std::string clsTopLayer;
+	std::string clsPattern;
 	// map->first = layerName; map->second = list of geometry rects or polygons.
 	std::map<std::string, std::deque<DefViaGeometryDscp>> clsGeometries;
-	DefViaDscp(){
+	DefViaDscp() {
 		clsHasViaRule = false;
 		clsHasRowCol = false;
 		clsHasOrigin = false;
 		clsHasOffset = false;
-		clsHasMask = false;
+		clsHasPattern = false;
 	} // end constructor 
 }; // end class
 
@@ -301,9 +304,10 @@ public:
 	std::vector<DefNetDscp> clsNets;
 	std::vector<DefRegionDscp> clsRegions;
 	std::vector<DefGroupDscp> clsGroups;
-	std::vector<DefSpecialNetDscp> clsSpecialNets;
+	std::vector<DefNetDscp> clsSpecialNets;
 	std::vector<DefViaDscp> clsVias;
 	std::vector<DefTrackDscp> clsTracks;
+	std::vector<DefGcellGridDscp> clsGcellGrids;
 	DefDscp() {
 		clsHasVersion = false;
 		clsHasDevideChar = false;

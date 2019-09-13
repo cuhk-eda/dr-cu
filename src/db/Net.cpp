@@ -5,40 +5,75 @@
 #include "Setting.h"
 
 namespace db {
+    
+NetBase::~NetBase() {
+    postOrderVisitGridTopo([](std::shared_ptr<GridSteiner> node){
+        node->children.clear(); // free the memory
+    });
+}
 
-void NetRouteResult::postOrderVisitGridTopo(const std::function<void(std::shared_ptr<GridSteiner>)>& visit) const {
-    for (const auto& tree : gridTopo) {
+BoxOnLayer NetBase::getMaxAccessBox(int pinIdx) const {
+    DBU maxArea = std::numeric_limits<DBU>::min();
+    db::BoxOnLayer bestBox;
+    for (const auto &box : pinAccessBoxes[pinIdx]) {
+        if (maxArea < box.area()) {
+            maxArea = box.area();
+            bestBox = box;
+        }
+    }
+    return bestBox;
+}
+
+void NetBase::postOrderVisitGridTopo(const std::function<void(std::shared_ptr<GridSteiner>)>& visit) const {
+    for (const std::shared_ptr<GridSteiner>& tree : gridTopo) {
         GridSteiner::postOrder(tree, visit);
     }
 }
 
-void NetRouteResult::printResult(ostream& os) const {
+void NetBase::printBasics(ostream& os) const {
+    os << "Net " << getName() << " (idx = " << idx << ") with " << numOfPins() << " pins " << std::endl;
+    for (int i = 0; i < numOfPins(); ++i) {
+        os << "pin " << i << " " << rsynPins[i].getInstanceName() << std::endl;
+        for (auto& accessBox : pinAccessBoxes[i]) {
+            os << accessBox << std::endl;
+        }
+    }
+
+    os << routeGuides.size() << " route guides" << std::endl;
+    if (routeGuides.size() == gridRouteGuides.size()) {
+        for (int i = 0; i < routeGuides.size(); ++i) {
+            os << routeGuides[i] << " " << gridRouteGuides[i] << std::endl;
+        }
+    }
+    else {
+        for (auto& routeGuide : routeGuides) {
+            os << routeGuide << std::endl;
+        }
+    }
+
+    os << std::endl;
+}
+
+void NetBase::printResult(ostream& os) const {
     os << "grid topo: " << std::endl;
     for (const auto& tree : gridTopo) {
         tree->printTree(os);
         os << std::endl;
     }
     os << "extend seg: " << std::endl;
-    os << extendedWireSegment << std::endl << std::endl;
-}
-
-void NetRouteResult::clearPostRouteResult() {
-    topo.clear();
-    minAreaVio = 0;
-    minAreaShadowedVio = 0;
-    viaPinVio = 0;
-}
-
-void NetRouteResult::clearResult() {
-    gridTopo.clear();
-    extendedWireSegment.clear();
-    clearPostRouteResult();
+    postOrderVisitGridTopo([&](std::shared_ptr<GridSteiner> node) {
+        if (node->extWireSeg) {
+            os << *(node->extWireSeg) << " ";
+        }
+    });
+    os << std::endl;
 }
 
 Net::Net(int i, Rsyn::Net net, RsynService& rsynService) {
     idx = i;
     rsynNet = net;
 
+    // pins
     pinAccessBoxes.reserve(net.getNumPins());
     const Rsyn::Session session;
     const Rsyn::PhysicalDesign& physicalDesign = static_cast<Rsyn::PhysicalService*>(session.getService("rsyn.physical"))->getPhysicalDesign();
@@ -49,11 +84,22 @@ Net::Net(int i, Rsyn::Net net, RsynService& rsynService) {
         initPinAccessBoxes(RsynPin, rsynService, pinAccessBoxes.back(), libDBU);
     }
 
+    // route guides
     const Rsyn::NetGuide& netGuide = rsynService.routeGuideService->getGuide(net);
     for (const Rsyn::LayerGuide& layerGuide : netGuide.allLayerGuides()) {
         auto bounds = layerGuide.getBounds();
         routeGuides.emplace_back(layerGuide.getLayer().getRelativeIndex(), getBoxFromRsynBounds(bounds));
     }
+    routeGuideVios.resize(routeGuides.size(), 0);
+}
+
+void Net::clearPostRouteResult() {
+    defWireSegments.clear();
+}
+
+void Net::clearResult() {
+    gridTopo.clear();
+    clearPostRouteResult();
 }
 
 void Net::initPinAccessBoxes(Rsyn::Pin rsynPin, RsynService& rsynService, vector<BoxOnLayer>& accessBoxes, const DBU libDBU) {
@@ -83,30 +129,6 @@ void Net::initPinAccessBoxes(Rsyn::Pin rsynPin, RsynService& rsynService, vector
     getPinAccessBoxes(phLibPin, phCell, accessBoxes, origin);
 };
 
-void Net::printBasics(ostream& os) const {
-    os << "Net " << getName() << " (idx = " << idx << ") with " << numOfPins() << " pins " << std::endl;
-    for (int i = 0; i < numOfPins(); ++i) {
-        os << "pin " << i << " " << rsynPins[i].getInstanceName() << std::endl;
-        for (auto& accessBox : pinAccessBoxes[i]) {
-            os << accessBox << std::endl;
-        }
-    }
-
-    os << routeGuides.size() << " route guides" << std::endl;
-    if (routeGuides.size() == gridRouteGuides.size()) {
-        for (int i = 0; i < routeGuides.size(); ++i) {
-            os << routeGuides[i] << " " << gridRouteGuides[i] << std::endl;
-        }
-    }
-    else {
-        for (auto& routeGuide : routeGuides) {
-            os << routeGuide << std::endl;
-        }
-    }
-
-    os << std::endl;
-}
-
 void Net::getPinAccessBoxes(Rsyn::PhysicalPort phPort, vector<BoxOnLayer>& accessBoxes) {
     auto displacement = phPort.getPosition();
     auto bounds = phPort.getBounds();
@@ -129,7 +151,7 @@ void Net::getPinAccessBoxes(Rsyn::PhysicalLibraryPin phLibPin,
     const DBUxy displacement = phCell.getPosition() + origin;
     auto transform = phCell.getTransform();
     // for (Rsyn::PhysicalPinGeometry phPinGeo : phLibPin.allPinGeometries()) {
-    // TODO: check why multiple PinGeometry on t4 inst60849
+    // TODO: check why multiple PinGeometry on 8t4 inst60849
     auto phPinGeo = phLibPin.allPinGeometries()[0];
     for (Rsyn::PhysicalPinLayer phPinLayer : phPinGeo.allPinLayers()) {
         if (!phPinLayer.hasRectangleBounds()) {
@@ -152,6 +174,14 @@ void NetList::init(RsynService& rsynService) {
     nets.reserve(rsynService.design.getNumNets());
     int numPins = 0;
     for (Rsyn::Net net : rsynService.module.allNets()) {
+        switch(net.getUse()) {
+            case Rsyn::POWER:
+                continue;
+            case Rsyn::GROUND:
+                continue;
+            default:
+                break;
+        }
         nets.emplace_back(nets.size(), net, rsynService);
         numPins += nets.back().pinAccessBoxes.size();
     }

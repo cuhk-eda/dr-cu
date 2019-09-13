@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
 
 import argparse, os
+from run_base import *
 from stat_base import *
 
 parser = argparse.ArgumentParser()
-parser.add_argument('files', metavar='file', type=str, nargs='+')
+parser.add_argument('--dir', '-d')
+parser.add_argument('--files', '-f', type=str, nargs='+')
 args = parser.parse_args()
 
 route_items = ['wire space', 'wire-wire', 'wire-fix', 'via-via', 'via-wire', 'via-fix', 'min area', 'est score', 'mem', 'runtime']
-eval_items = ['WL', '# vias', 'og WL', 'og # vias', 'ot WL', 'ot # vias', 'ww WL', 'short area', '# min area', '# spc', '# open', 'tot']
+eval_items = ['WL', '#sv', 'og WL', 'og #v', 'ot WL', 'ot #v', 'ww WL', '#short', 'short a', '#min a', '#prl', '#eol', '#cut', '#adj', '#cnr', '#spc', '#o', 'tot']
 
 def ParseRoute(file):
     # register
@@ -26,22 +28,33 @@ def ParseRoute(file):
     with open(file) as f:
         for line in f:
             reRoute.ProcessLine(result, line)
+    if 'mem' in result:
+        result['mem'] = str(round(float(result['mem']) / 1048576, 6)) # KB to GB
     return result
 
 def ParseEval(file):
     # register
     reRoute = RegexPatternSet()
     reRoute.Add(['WL'], '.*Total wire length \|[ ]+[\d.]+ \|[ ]+([\d.]+)')
-    reRoute.Add(['# vias'], '.*Total via count \|[ ]+([\d.]+)')
+    reRoute.Add(['#sv'], '.*Total via count \|[ ]+([\d.]+)')
+    reRoute.Add(['#sv'], '.*Total SCut via count \|[ ]+([\d.]+)')
+    # reRoute.Add(['#mv'], '.*Total MCut via count \|[ ]+([\d.]+)')
     reRoute.Add(['og WL'], '.*Out-of-guide wire \|[ ]+[\d.]+ \|[ ]+([\d.]+)')
-    reRoute.Add(['og # vias'], '.*Out-of-guide vias \|[ ]+([\d.]+)')
+    reRoute.Add(['og #v'], '.*Out-of-guide vias \|[ ]+([\d.]+)')
     reRoute.Add(['ot WL'], '.*Off-track wire \|[ ]+[\d.]+ \|[ ]+([\d.]+)')
-    reRoute.Add(['ot # vias'], '.*Off-track via \|[ ]+([\d.]+)')
+    reRoute.Add(['ot #v'], '.*Off-track via \|[ ]+([\d.]+)')
     reRoute.Add(['ww WL'], '.*Wrong-way wire \|[ ]+[\d.]+ \|[ ]+([\d.]+)')
-    reRoute.Add(['short area'], '.*Area of metal shorts \|[ ]+[\d.]+ \|[ ]+([\d.]+)')
-    reRoute.Add(['# min area'], '.*#min-area violations \|[ ]+([\d.]+)')
-    reRoute.Add(['# spc'], '.*#spacing violations \|[ ]+([\d.]+)')
-    reRoute.Add(['# open'], '.*#open nets \|[ ]+([\d.]+)')
+    reRoute.Add(['#short'], '.*Number of metal/cut shorts \|[ ]+([\d.]+)')
+    reRoute.Add(['short a'], '.*Area of metal shorts \|[ ]+[\d.]+ \|[ ]+([\d.]+)')
+    reRoute.Add(['short a'], '.*Area of metal/cut shorts \|[ ]+[\d.]+ \|[ ]+([\d.]+)')
+    reRoute.Add(['#min a'], '.*#min-area violations \|[ ]+([\d.]+)')
+    reRoute.Add(['#prl'], '.*#PRL violation \|[ ]+([\d.]+)')
+    reRoute.Add(['#eol'], '.*#EOL Spacing violation \|[ ]+([\d.]+)')
+    reRoute.Add(['#cut'], '.*#Cut Spacing violation \|[ ]+([\d.]+)')
+    reRoute.Add(['#adj'], '.*#Adj. Cut Spacing violation \|[ ]+([\d.]+)')
+    reRoute.Add(['#cnr'], '.*#Corner Spacing violation \|[ ]+([\d.]+)')
+    reRoute.Add(['#spc'], '.*#spacing violations \|[ ]+([\d.]+)')
+    reRoute.Add(['#o'], '.*#open nets \|[ ]+([\d.]+)')
     reRoute.Add(['tot'], '.*Total Score \|[ ]+([\d.]+)')
 
     # iterate lines
@@ -51,7 +64,14 @@ def ParseEval(file):
             reRoute.ProcessLine(result, line)
     return result
 
-def is_eval_rpt(file):
+def IsValidFile(file):
+    if not os.path.isfile(file):
+        print('Warning: file', file, 'does not exist')
+        return False
+    print('Processing file', file, '...')
+    return True
+
+def IsEvalRpt(file):
     with open(file) as f:
         for line in f:
             if 'Guides and tracks Obedience' in line:
@@ -59,20 +79,35 @@ def is_eval_rpt(file):
     return False
 
 route_results = []
+route_time_results = []
 eval_results = []
-for file in args.files:
-    if not os.path.isfile(file):
-        print('Warning: file', file, 'does not exist')
-        continue
-    print('Processing file', file, '...')
-    if is_eval_rpt(file):
-        eval_results.append(ParseEval(file))
-    else:
-        route_results.append(ParseRoute(file))
-        if 'mem' in route_results[-1]:
-            route_results[-1]['mem'] = str(round(float(route_results[-1]['mem']) / 1048576, 6)) # KB to GB
 
-print('ROUTER INFO')
+if args.files:
+    for file in args.files:
+        if not IsValidFile(file):
+            continue
+        if IsEvalRpt(file):
+            eval_results.append(ParseEval(file))
+        else:
+            route_results.append(ParseRoute(file))
+elif args.dir:
+    route_items = ['case'] + route_items
+    eval_items = ['case'] + eval_items
+    for bm in all_benchmarks.get_selected('all'):
+        route_file = '{}/{}/{}.log'.format(args.dir, bm.abbr_name, bm.full_name)
+        eval_file = '{}/{}/eval.score.rpt'.format(args.dir, bm.abbr_name)
+        if IsValidFile(route_file):
+            route_results.append(ParseRoute(route_file))
+            route_results[-1]['case'] = bm.abbr_name
+        if IsValidFile(eval_file):
+            eval_results.append(ParseEval(eval_file))
+            eval_results[-1]['case'] = bm.abbr_name
+else:
+    print('Error: neither file(s) nor directory specified')
+    quit()
+
+print('### ROUTER INFO')
 PrintResultTable(route_items, route_results)
-print('EVALUATOR INFO')
+print('')
+print('### EVALUATOR INFO')
 PrintResultTable(eval_items, eval_results)

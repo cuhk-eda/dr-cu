@@ -20,9 +20,9 @@
 // For updates, support, or to become part of the LEF/DEF Community,
 // check www.openeda.org for details.
 // 
-//  $Author: icftcm $
+//  $Author: dell $
 //  $Revision: #1 $
-//  $Date: 2014/02/10 $
+//  $Date: 2017/06/06 $
 //  $State:  $
 // *****************************************************************************
 // *****************************************************************************
@@ -35,10 +35,13 @@
 
 BEGIN_LEFDEF_PARSER_NAMESPACE
 
+class defrData;
+
 // Struct holds the data for one property.
+
 class defiGroup {
 public:
-  defiGroup();
+  defiGroup(defrData *data);
   void Init();
 
   void Destroy();
@@ -107,6 +110,8 @@ protected:
   char**  propValues_;
   double* propDValues_;
   char*   propTypes_;
+
+  defrData *defData;
 };
 
 

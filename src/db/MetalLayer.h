@@ -28,8 +28,16 @@ public:
 
 class SpaceRule {
 public:
-    SpaceRule(const DBU space, const DBU eolWidth, const DBU eolWithin) : space(space), hasEol(true), eolWidth(eolWidth), eolWithin(eolWithin) {}
-    SpaceRule(const DBU space, const DBU eolWidth, const DBU eolWithin, const DBU parSpace, const DBU parWithin) : space(space), hasEol(true), eolWidth(eolWidth), eolWithin(eolWithin), hasPar(true), parSpace(parSpace), parWithin(parWithin) {}
+    SpaceRule(const DBU space, const DBU eolWidth, const DBU eolWithin)
+        : space(space), hasEol(true), eolWidth(eolWidth), eolWithin(eolWithin) {}
+    SpaceRule(const DBU space, const DBU eolWidth, const DBU eolWithin, const DBU parSpace, const DBU parWithin)
+        : space(space),
+          hasEol(true),
+          eolWidth(eolWidth),
+          eolWithin(eolWithin),
+          hasPar(true),
+          parSpace(parSpace),
+          parWithin(parWithin) {}
 
     DBU space = 0;
     bool hasEol = false;
@@ -39,6 +47,8 @@ public:
     DBU parSpace = 0;
     DBU parWithin = 0;
 };
+
+enum class AggrParaRunSpace { DEFAULT, LARGER_WIDTH, LARGER_LENGTH };
 
 // note: for operations on GeoPrimitives, all checking is down in LayerList for low level efficiency
 class MetalLayer {
@@ -57,9 +67,11 @@ public:
     DBU firstTrackLoc() const { return tracks.front().location; }
     DBU lastTrackLoc() const { return tracks.back().location; }
     bool isTrackRangeValid(const utils::IntervalT<int>& trackRange) const;
+    bool isTrackRangeWeaklyValid(const utils::IntervalT<int>& trackRange) const;
     utils::IntervalT<int> getUpperCrossPointRange(const utils::IntervalT<int>& trackRange) const;
     utils::IntervalT<int> getLowerCrossPointRange(const utils::IntervalT<int>& trackRange) const;
-    // search by location range (result may be invalid/empty)
+    // search by location (range) (result may be invalid/empty)
+    utils::IntervalT<int> getSurroundingTrack(DBU loc) const;
     utils::IntervalT<int> rangeSearchTrack(const utils::IntervalT<DBU>& locRange, bool includeBound = true) const;
 
     // CrossPoint (1D)
@@ -74,7 +86,6 @@ public:
     vector<DBU> accCrossPointDistCost;
     void initAccCrossPointDistCost();
     DBU getCrossPointRangeDistCost(const utils::IntervalT<int>& crossPointRange) const;
-    DBU getTrackSegmentLen(const db::GridEdge& edge) const;
     DBU getCrossPointRangeDist(const utils::IntervalT<int>& crossPointRange) const;
 
     // GridPoint (2D) = Track (1D) x CrossPoint (1D)
@@ -91,6 +102,8 @@ public:
     // width
     DBU width = 0;
     DBU minWidth = 0;
+    DBU widthForSuffOvlp = 0;
+    DBU shrinkForSuffOvlp = 0;
     // minArea
     DBU minArea = 0;
     DBU minLenRaw = 0;
@@ -108,29 +121,47 @@ public:
     vector<DBU> parallelLength{0};
     vector<vector<DBU>> parallelWidthSpace{{0}};
     DBU defaultSpace = 0;
-    DBU aggressiveSpace = 0;
-    DBU getSpace(DBU width) const;
-    DBU getSpace(const utils::BoxT<DBU>& targetMetal) const;
-    DBU getSpace(const utils::BoxT<DBU>& targetMetal, int dir, bool aggressive) const;
+    DBU paraRunSpaceForLargerWidth = 0;
+    DBU getParaRunSpace(const DBU width, const DBU length = 0) const;
+    DBU getParaRunSpace(const utils::BoxT<DBU>& targetMetal, const DBU length = 0) const;
     // eol spacing
+    // TODO: handle multiple spaceRules
+    vector<SpaceRule> spaceRules;
     DBU maxEolSpace = 0;
     DBU maxEolWidth = 0;
     DBU maxEolWithin = 0;
-    vector<SpaceRule> spaceRules;
-    bool isEolActive(const utils::BoxT<DBU>& targetMetal) const {
-        return min(targetMetal.x.range(), targetMetal.y.range()) < maxEolWidth;
-    }
     DBU getEolSpace(const DBU width) const;
     bool isEolViolation(const DBU space, const DBU width, const DBU within) const;
-    //  margin for multi-thread safe
-    DBU safeMargin = 0;
+    bool isEolViolation(const utils::BoxT<DBU>& lhs, const utils::BoxT<DBU>& rhs) const;
+    // corner spacing
+    bool cornerExceptEol = false;
+    DBU cornerEolWidth = 0;
+    vector<DBU> cornerWidth{0};
+    vector<DBU> cornerWidthSpace{0};
+    bool hasCornerSpace() const { return cornerWidthSpace.size() > 1 || cornerWidthSpace[0]; }
+    DBU getCornerSpace(const DBU width) const;
+    DBU getCornerSpace(const utils::BoxT<DBU>& targetMetal) const;
+
+    // Translate design rule
+    // either both parallel-run spacing or eol spacing
+    DBU getSpace(const utils::BoxT<DBU>& targetMetal, int dir, AggrParaRunSpace aggr) const;
+    // there is parallel-run spacing with negative length if the targetMetal is not eol dominated
+    bool isEolDominated(const utils::BoxT<DBU>& targetMetal) const {
+        return max(targetMetal.x.range(), targetMetal.y.range()) < maxEolWidth;
+    }
+    // margin for multi-thread safe and others
+    DBU minAreaMargin = 0;
+    DBU confLutMargin = 0;
+    DBU fixedMetalQueryMargin = 0;
+    DBU mtSafeMargin = 0;
 
     // Via conflict lookup table (true means "available" / no conflict)
-    // 1. wire-via conflict (crossPointIdx, trackIdx, crossPointIdx)
-    vector<vector<vector<bool>>> wireBotVia;
-    vector<vector<vector<bool>>> wireTopVia;
-    vector<vector<utils::IntervalT<int>>> wireBotViaRange;
-    vector<vector<utils::IntervalT<int>>> wireTopViaRange;
+    // 1. wire-via conflict (viaTypeIdx, crossPointIdx, trackIdx, crossPointIdx)
+    vector<vector<vector<vector<bool>>>> wireBotVia;
+    vector<vector<vector<vector<bool>>>> wireTopVia;
+    vector<vector<vector<bool>>> mergedWireBotVia;
+    vector<vector<vector<bool>>> mergedWireTopVia;
+    bool isWireViaMultiTrack = false;
     // 2. wire-wire conflict (crossPointIdx, crossPointIdx)
     vector<utils::IntervalT<int>> wireRange;
 
@@ -143,8 +174,6 @@ public:
 
 private:
     void check() const;
-    static void initWireViaRange(const vector<vector<vector<bool>>>& wireVia,
-                                 vector<vector<utils::IntervalT<int>>>& wireInr);
 };
 
 }  // namespace db

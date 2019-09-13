@@ -1,6 +1,6 @@
 // *****************************************************************************
 // *****************************************************************************
-// Copyright 2012, Cadence Design Systems
+// Copyright 2012 - 2015, Cadence Design Systems
 // 
 // This  file  is  part  of  the  Cadence  LEF/DEF  Open   Source
 // Distribution,  Product Version 5.8. 
@@ -20,9 +20,9 @@
 // For updates, support, or to become part of the LEF/DEF Community,
 // check www.openeda.org for details.
 // 
-//  $Author: icftcm $
+//  $Author: dell $
 //  $Revision: #1 $
-//  $Date: 2014/02/10 $
+//  $Date: 2017/06/06 $
 //  $State:  $
 // *****************************************************************************
 // *****************************************************************************
@@ -30,27 +30,62 @@
 #ifndef LEFDEFZIP_H
 #define LEFDEFZIP_H
 
-typedef void* defGZFile;
+#include "defiDefs.hpp"
 
-/* 
- * Name: defGZipOpen
- * Description: Open a gzip file
- * Returns: A file pointer
- */
+BEGIN_LEFDEF_PARSER_NAMESPACE
+
+typedef void* defGZFile;
+class defrContext;
+
+//
+// Name: defrSetReadGZipFunction
+// Description: Sets GZip read function for the parser
+// Returns: 0 if no errors
+//
+extern void defrSetGZipReadFunction();
+
+//
+// Name: defOpenGZip
+// Description: Open a gzip file
+// Returns: A file pointer
+//
+extern defGZFile defrGZipOpen(const char* gzipFile, const char* mode);
+
+// 
+// Name: defCloseGZip
+// Description: Close a gzip file
+// Returns: 0 if no errors
+//
+extern int defrGZipClose(defGZFile filePtr);
+
+//
+// Name: defrReadGZip
+// Description: Parse a def gzip file
+// Returns: 0 if no errors
+//
+extern int defrReadGZip(defGZFile file, const char* gzipFile, void* uData);
+
+//
+// FUNCTIONS TO BE OBSOLETED.
+// The API is kept only for compatibility reasons.
+//
+
+//
+// Name: defGZipOpen
+// Description: Open a gzip file
+// Returns: A file pointer
+//
 extern defGZFile defGZipOpen(const char* gzipFile, const char* mode);
 
-/* 
- * Name: defGZipClose
- * Description: Close a gzip file
- * Returns: 0 if no errors
- */
+// 
+// Name: defGZipClose
+// Description: Close a gzip file
+// Returns: 0 if no errors
+//
 extern int defGZipClose(defGZFile filePtr);
 
-/*
- * Name: defrReadGZip
- * Description: Parse a def gzip file
- * Returns: 0 if no errors
- */
-extern int defrReadGZip(defGZFile file, const char* gzipFile, void* uData);
+END_LEFDEF_PARSER_NAMESPACE
+
+USE_LEFDEF_PARSER_NAMESPACE
 
 #endif

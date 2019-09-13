@@ -1,6 +1,7 @@
 #pragma once
 
 #include "LocalNet.h"
+#include "PostMazeRoute.h"
 #include "UpdateDB.h"
 #include "PostRoute.h"
 

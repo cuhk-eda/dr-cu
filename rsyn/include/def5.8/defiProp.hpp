@@ -20,9 +20,9 @@
 // For updates, support, or to become part of the LEF/DEF Community,
 // check www.openeda.org for details.
 // 
-//  $Author: icftcm $
+//  $Author: dell $
 //  $Revision: #1 $
-//  $Date: 2014/02/10 $
+//  $Date: 2017/06/06 $
 //  $State:  $
 // *****************************************************************************
 // *****************************************************************************
@@ -35,10 +35,12 @@
 
 BEGIN_LEFDEF_PARSER_NAMESPACE
 
+class defrData;
+
 // Struct holds the data for one property.
 class defiProp {
 public:
-  defiProp();
+  defiProp(defrData *data);
   void Init();
 
   void Destroy();
@@ -85,6 +87,8 @@ protected:
   int stringLength_;    // allocated size of stringData.
   double left_, right_; // if it has a range the numbers are here.
   double d_;            // if it is a real or int the number is here.
+
+  defrData *defData;
 };
 
 

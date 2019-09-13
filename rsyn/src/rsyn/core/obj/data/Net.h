@@ -47,12 +47,16 @@ struct NetData : ObjectData {
 	// Helper used for netlist traversals.
 	int sign;
 	
+	// Mateus @ 20190204: Adding net use;
+	Use netUse;
+	
 	NetData() : 
 		mid(-1),
 		sign(-1),
 		driver(nullptr), 
-		numPinsOfType({0, 0, 0, 0}), 
-		parent(nullptr) {
+		numPinsOfType({0, 0, 0, 0}),
+		parent(nullptr),
+		netUse(UNKNOWN_USE) {
 	} // end constructor	
 }; // end struct
 

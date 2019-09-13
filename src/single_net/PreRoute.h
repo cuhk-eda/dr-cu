@@ -12,7 +12,7 @@ private:
     LocalNet& localNet;
 
     db::RouteStatus run(int numPitchForGuideExpand);
-    void expandBoxToMargin(vector<db::BoxOnLayer>& routeGuides);
+    void expandGuidesToMargin();
     db::RouteStatus expandGuidesToCoverPins();
 
     bool checkGuideConnTrack() const;

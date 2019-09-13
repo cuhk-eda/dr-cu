@@ -180,6 +180,8 @@ public:
 
 	//! @brief Gets the current number of pins in the design.
 	int getNumPins() const;
+        
+        Range<ReferenceListCollection<Cell>> getAllCells() const;
 	
 	////////////////////////////////////////////////////////////////////////////
 	// Topological Ordering

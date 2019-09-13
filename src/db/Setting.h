@@ -6,18 +6,20 @@ namespace db {
 
 BETTER_ENUM(VerboseLevelT, int, LOW = 0, MIDDLE = 1, HIGH = 2);
 
+// global setting
 class Setting {
 public:
     // basic
     std::string outputFile;
     int numThreads = 1;  // 0 for simple scheduling
+    int tat = std::numeric_limits<int>::max();
 
     // multi_net
     VerboseLevelT multiNetVerbose = VerboseLevelT::MIDDLE;
     bool multiNetScheduleSortAll = true;
-    double multiNetScheduleAssignBackRatio = 0;
     bool multiNetScheduleSort = true;
     bool multiNetScheduleReverse = true;
+    int multiNetSelectViaTypesIter = 3;
     int rrrIterLimit = 4;
     bool rrrWriteEachIter = false;
     double rrrInitVioCostDiscount = 0.1;
@@ -27,6 +29,7 @@ public:
     VerboseLevelT singleNetVerbose = VerboseLevelT::MIDDLE;
     int defaultGuideExpand = 2;  // route guide expansion in pitch for all nets
     int guideExpandIterLimit = 9;
+    int diffLayerGuideVioThres = 4;
     double wrongWayPointDensity = 0.1;
     double wrongWayPenaltyCoeff = 4;  // at least weightWrongWayWirelength / weightWirelength + 1 = 3
     bool fixOpenBySST = true;
@@ -38,6 +41,7 @@ public:
     int dbUsePoorViaMapThres = 100000;
     double dbPoorWirePenaltyCoeff = 8;
     double dbPoorViaPenaltyCoeff = 8;
+    double dbInitHistUsageForPinAccess = 0.1;
     double dbNondefaultViaPenaltyCoeff = 0.005;
 
     //  Metric weights of ISPD 2018 Contest
@@ -59,8 +63,23 @@ public:
     static constexpr int weightMinAreaVioNum = 500;
 
     void makeItSilent();
+    void adapt();
 };
 
 extern Setting setting;
+
+// setting that changes in each rrr iteration
+class RrrIterSetting {
+public:
+    int defaultGuideExpand;
+    double wrongWayPointDensity;
+    bool addDiffLayerGuides;
+    bool converMinAreaToOtherVio;
+
+    void update(int iter);
+    void print() const;
+};
+
+extern RrrIterSetting rrrIterSetting;
 
 }  //   namespace db

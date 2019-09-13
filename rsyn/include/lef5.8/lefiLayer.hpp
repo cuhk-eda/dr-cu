@@ -1,6 +1,6 @@
 // *****************************************************************************
 // *****************************************************************************
-// Copyright 2012 - 2013, Cadence Design Systems
+// Copyright 2012 - 2015, Cadence Design Systems
 // 
 // This  file  is  part  of  the  Cadence  LEF/DEF  Open   Source
 // Distribution,  Product Version 5.8. 
@@ -20,9 +20,9 @@
 // For updates, support, or to become part of the LEF/DEF Community,
 // check www.openeda.org for details.
 // 
-//  $Author: icftcm $
+//  $Author: dell $
 //  $Revision: #1 $
-//  $Date: 2014/02/10 $
+//  $Date: 2017/06/06 $
 //  $State:  $
 // *****************************************************************************
 // *****************************************************************************
@@ -56,6 +56,7 @@ public:
   lefiAntennaPWL();
   ~lefiAntennaPWL();
 
+  static lefiAntennaPWL* create();
   void Init();
   void clear();
   void Destroy();
@@ -260,7 +261,6 @@ public:
   ~lefiAntennaModel();
 
   void Init();
-  void clear();
   void Destroy();
 
   void setAntennaModel(int oxide);
@@ -778,6 +778,7 @@ public:
 
   void parse65nmRules();                  // 5.7
   void parseLEF58Layer();                 // 5.8
+  int  need58PropsProcessing() const;     // 5.8
 
   // Debug print
   void print(FILE* f) const;
@@ -794,6 +795,7 @@ private:
 
   void parseLayerType(int index);         // 5.8
   void parseLayerEnclosure(int index);    // 5.8
+  void parseLayerWidthTable(int indxe);   // 5.8
 
 protected:
   char* name_;
@@ -967,6 +969,7 @@ protected:
   int hasAntennaSideAreaFactorDUO_;
 
   // 5.5 AntennaModel
+  lefiAntennaModel* currentAntennaModel_;
   int numAntennaModel_;
   int antennaModelAllocated_;
   lefiAntennaModel** antennaModel_;
@@ -1047,6 +1050,11 @@ protected:
   double* endOfNotchWidth_;
   double* minNotchSpacing_;
   double* eonotchLength_;
+
+  int     lef58WidthTableOrthoValues_;
+  int     lef58WidthTableWrongDirValues_;
+  double* lef58WidthTableOrtho_;
+  double* lef58WidthTableWrongDir_;
 };
 
 END_LEFDEF_PARSER_NAMESPACE

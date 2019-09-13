@@ -76,6 +76,12 @@ inline bool PhysicalVia::isViaGeometry() const {
 
 // -----------------------------------------------------------------------------
 
+inline bool PhysicalVia::hasViaRule() const {
+	return data->clsHasViaRule;
+} // end method
+
+// -----------------------------------------------------------------------------
+
 inline bool PhysicalVia::hasRowCol() const {
 	return data->clsHasRowCol;
 } // end method
@@ -88,8 +94,14 @@ inline bool PhysicalVia::hasOrigin() const {
 
 // -----------------------------------------------------------------------------
 
-inline bool PhysicalVia::hasoffset() const {
+inline bool PhysicalVia::hasOffset() const {
 	return data->clsHasOffset;
+} // end method
+
+// -----------------------------------------------------------------------------
+
+inline bool PhysicalVia::hasPattern() const {
+	return data->clsHasPattern;
 } // end method
 
 // -----------------------------------------------------------------------------
@@ -144,6 +156,12 @@ inline int PhysicalVia::getNumRows() const {
 
 inline int PhysicalVia::getNumCols() const {
 	return data->clsNumCols;
+} // end method
+
+// -----------------------------------------------------------------------------
+
+inline const std::string & PhysicalVia::getPattern() const {
+	return data->clsPattern;
 } // end method
 
 // -----------------------------------------------------------------------------

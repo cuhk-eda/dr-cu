@@ -60,8 +60,6 @@ public:
 	bool hasObstacles() const;
 	//! @brief Returns PhysicalSite object related to the PhysicalLibraryCell.
 	Rsyn::PhysicalSite getSite() const;
-	//! @breif Returns the library cell macro symmetry orientation
-	Rsyn::PhysicalSymmetry getSymmetry() const;
 	//! @breif Returns true if there is a top layer obstacle. The top layer obs is the highest metal layer blockage.
 	bool hasTopLayerObstacle() const;
 	//! @breif Returns the top layer obstacle. The top layer obs is the highest metal layer blockage.

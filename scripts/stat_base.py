@@ -64,3 +64,4 @@ def PrintResultTable(items, results):
         for i in range(len(items) - 1):
             print("{:{}}".format(GetVal(items[i], result), widths[i]), end=" | ")
         print("{:{}}".format(GetVal(items[-1], result), widths[-1]))
+

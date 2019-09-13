@@ -30,7 +30,7 @@ inline Rsyn::Direction lefPinDirectionFromString(const std::string &direction) {
 	return Rsyn::UNKNOWN_DIRECTION;
 } // end function
 
-inline Rsyn::PinUse lefPinUseFromString(const std::string &direction) {
+inline Rsyn::Use lefPinUseFromString(const std::string &direction) {
 	if (direction == "SIGNAL"   ) return Rsyn::SIGNAL;
 	if (direction == "POWER"    ) return Rsyn::POWER;
 	if (direction == "GROUND"  ) return Rsyn::GROUND;

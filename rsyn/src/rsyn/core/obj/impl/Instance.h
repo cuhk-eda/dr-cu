@@ -336,6 +336,14 @@ Instance::getAnyArc() {
 // -----------------------------------------------------------------------------
 
 inline
+LibraryCell
+Instance::getLibraryCell() const {
+	return getType() == Rsyn::CELL? Cell(data).getLibraryCell() : nullptr;
+} // end method
+
+// -----------------------------------------------------------------------------
+
+inline
 Range<CollectionOfPinsFilteredByDirection>
 Instance::allPins(const Direction direction, bool filterPG) const {
 	return CollectionOfPinsFilteredByDirection(data->pins, direction, filterPG);

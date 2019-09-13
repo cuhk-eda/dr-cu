@@ -1,13 +1,16 @@
 #include "CutLayer.h"
+#include "Setting.h"
 
 namespace db {
 
 ViaType::ViaType(Rsyn::PhysicalVia rsynVia) {
+    if (rsynVia.allCutGeometries().size() > 1) hasMultiCut = true;
+
     bot = getBoxFromRsynGeometries(rsynVia.allBottomGeometries());
     cut = getBoxFromRsynGeometries(rsynVia.allCutGeometries());
     top = getBoxFromRsynGeometries(rsynVia.allTopGeometries());
     name = rsynVia.getName();
-    /*
+
     if (rsynVia.hasRowCol()) {
         const DBU xBotEnc = rsynVia.getEnclosure(Rsyn::BOTTOM_VIA_LEVEL, X);
         const DBU yBotEnc = rsynVia.getEnclosure(Rsyn::BOTTOM_VIA_LEVEL, Y);
@@ -21,7 +24,7 @@ ViaType::ViaType(Rsyn::PhysicalVia rsynVia) {
         cut = {-xCut, -yCut, xCut, yCut};
         top = {-xCut - xTopEnc, -yCut - yTopEnc, xCut + xTopEnc, yCut + yTopEnc};
     }
-    */
+
     if (!bot.IsStrictValid() || !cut.IsStrictValid() || !top.IsStrictValid()) {
         log() << "Warning in " << __func__ << ": For " << rsynVia.getName()
               << " , has non strict valid via layer bound... " << std::endl;
@@ -30,9 +33,20 @@ ViaType::ViaType(Rsyn::PhysicalVia rsynVia) {
 
 std::tuple<DBU, DBU, DBU, DBU> ViaType::getDefaultScore(const Dimension botDim, const Dimension topDim) const {
     return std::tuple<DBU, DBU, DBU, DBU>(bot[botDim].range(),       // belowWidth
-                                     top[topDim].range(),       // aboveWidth
-                                     bot[1 - botDim].range(),   // belowWidth
-                                     top[1 - topDim].range());  // aboveLength
+                                          top[topDim].range(),       // aboveWidth
+                                          bot[1 - botDim].range(),   // belowWidth
+                                          top[1 - topDim].range());  // aboveLength
+}
+
+utils::BoxT<DBU> ViaType::getShiftedBotMetal(const utils::PointT<DBU>& viaPos) const {
+    utils::BoxT<DBU> metal = bot;
+    metal.ShiftBy(viaPos);
+    return metal;
+}
+utils::BoxT<DBU> ViaType::getShiftedTopMetal(const utils::PointT<DBU>& viaPos) const {
+    utils::BoxT<DBU> metal = top;
+    metal.ShiftBy(viaPos);
+    return metal;
 }
 
 CutLayer::CutLayer(const Rsyn::PhysicalLayer& rsynLayer,
@@ -56,18 +70,20 @@ CutLayer::CutLayer(const Rsyn::PhysicalLayer& rsynLayer,
         log() << "Error in " << __func__ << ": For " << name << " rsynVias is empty... " << std::endl;
     }
 
-    defaultViaTypeIdx = -1;
-    constexpr DBU dbuMax = std::numeric_limits<DBU>::has_infinity ? std::numeric_limits<DBU>::infinity() : std::numeric_limits<DBU>::max();
+    int defaultViaTypeIdx = -1;
+    const DBU dbuMax =
+        std::numeric_limits<DBU>::has_infinity ? std::numeric_limits<DBU>::infinity() : std::numeric_limits<DBU>::max();
     std::tuple<DBU, DBU, DBU, DBU> bestScore(dbuMax, dbuMax, dbuMax, dbuMax);
     for (const Rsyn::PhysicalVia& rsynVia : rsynVias) {
-        if (rsynVia.allBottomGeometries().size() != 1 || rsynVia.allCutGeometries().size() != 1 ||
-            rsynVia.allTopGeometries().size() != 1) {
-            log() << "Warning in " << __func__ << ": For " << rsynVia.getName()
-                  << " , has not exactly one via layer bound... " << std::endl;
-            continue;
-        }
+        if (rsynVia.isViaDesign()) continue;
 
-        if (rsynVia.isViaDesign()) {
+        if ((rsynVia.allBottomGeometries().size() != 1 ||
+             rsynVia.allCutGeometries().size() != 1 ||
+             rsynVia.allTopGeometries().size() != 1)) {
+            if (setting.dbVerbose >= +VerboseLevelT::MIDDLE) {
+                log() << "Warning in " << __func__ << ": For " << rsynVia.getName()
+                      << " , has not exactly one metal layer bound or more than one cut layer bound... " << std::endl;
+            }
             continue;
         }
 
@@ -80,7 +96,17 @@ CutLayer::CutLayer(const Rsyn::PhysicalLayer& rsynLayer,
     }
 
     if (defaultViaTypeIdx == -1) {
-        log() << "Error in " << __func__ << ": For " << name << " all rsyn vias have not exactly one via bound... " << std::endl;
+        log() << "Error in " << __func__ << ": For " << name << " all rsyn vias have not exactly one via bound... "
+              << std::endl;
+    }
+
+    // make default via the first one
+    if (defaultViaTypeIdx > 0) {
+        std::swap(allViaTypes[0], allViaTypes[defaultViaTypeIdx]);
+    }
+    // init ViaType::idx
+    for (unsigned i = 0; i != allViaTypes.size(); ++i) {
+        allViaTypes[i].idx = i;
     }
 }
 
@@ -101,8 +127,8 @@ ostream& CutLayer::printDesignRules(ostream& os) const {
 }
 
 ostream& CutLayer::printViaOccupancyLUT(ostream& os) const {
-    os << name << ": viaCut(" << viaCut.size() << ',' << viaCut[0].size() << ")";
-    os << ", viaMetal(" << viaMetal.size() << ',' << viaMetal[0].size() << ")";
+    os << name << ": viaCut(" << viaCut().size() / 2 + 1 << ',' << viaCut()[0].size() / 2 + 1 << ")";
+    os << ", viaMetal(" << viaMetal().size() / 2 + 1 << ',' << viaMetal()[0].size() / 2 + 1 << ")";
     // TODO: make xSize member variables, since they will be the same in a LUT over all cps
     auto getMaxSize = [](const vector<vector<vector<bool>>>& LUT, size_t& xSize, size_t& ySize) {
         xSize = 0;
@@ -115,14 +141,22 @@ ostream& CutLayer::printViaOccupancyLUT(ostream& os) const {
         }
     };
     size_t xSize, ySize;
-    getMaxSize(viaBotVia, xSize, ySize);
-    os << ", viaBotVia(" << viaBotVia.size() << ',' << xSize << ',' << ySize << ")";
-    getMaxSize(viaTopVia, xSize, ySize);
-    os << ", viaTopVia(" << viaTopVia.size() << ',' << xSize << ',' << ySize << ")";
-    getMaxSize(viaBotWire, xSize, ySize);
-    os << ", viaBotWire(" << viaBotWire.size() << ',' << xSize << ',' << ySize << ")";
-    getMaxSize(viaTopWire, xSize, ySize);
-    os << ", viaTopWire(" << viaTopWire.size() << ',' << xSize << ',' << ySize << ")";
+    os << ", viaBotVia(";
+    if (defaultViaType().allViaBotVia.size()) {
+        getMaxSize(viaBotVia(), xSize, ySize);
+        os << viaBotVia().size() << ',' << xSize << ',' << ySize << ")";
+    }
+    else os << "-,-,-)";
+    os << ", viaTopVia(";
+    if (defaultViaType().allViaTopVia.size()) {
+        getMaxSize(viaTopVia(), xSize, ySize);
+        os << viaTopVia().size() << ',' << xSize << ',' << ySize << ")";
+    }
+    else os << "-,-,-)";
+    getMaxSize(viaBotWire(), xSize, ySize);
+    os << ", viaBotWire(" << viaBotWire().size() << ',' << xSize << ',' << ySize << ")";
+    getMaxSize(viaTopWire(), xSize, ySize);
+    os << ", viaTopWire(" << viaTopWire().size() << ',' << xSize << ',' << ySize << ")";
     return os;
 }
 

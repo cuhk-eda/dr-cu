@@ -1,20 +1,42 @@
 #include "PreRoute.h"
 
 db::RouteStatus PreRoute::run(int numPitchForGuideExpand) {
-    // expand
-    for (auto& guide : localNet.routeGuides) {
-        database.expandBox(guide, numPitchForGuideExpand);
+    // expand guides uniformally
+    auto& guides = localNet.routeGuides;
+    for (int i = 0; i < guides.size(); ++i) {
+        int expand = localNet.dbNet.routeGuideVios[i] ? numPitchForGuideExpand : db::setting.defaultGuideExpand;
+        database.expandBox(guides[i], numPitchForGuideExpand);
     }
 
-    // expand box by cross layer connection
-    // expandBoxToMargin(localNet.routeGuides);
+    // add diff-layer guides
+    if (db::rrrIterSetting.addDiffLayerGuides) {
+        int oriSize = guides.size();
+        for (int i = 0; i < oriSize; ++i) {
+            int j = guides[i].layerIdx;
+            if (localNet.dbNet.routeGuideVios[i] >= db::setting.diffLayerGuideVioThres) {
+                if (j > 2) guides.emplace_back(j - 1, guides[i]);  // do not add to layers 0, 1
+                if ((j + 1) < database.getLayerNum()) guides.emplace_back(j + 1, guides[i]);
+                db::routeStat.increment(db::RouteStage::PRE, db::MiscRouteEvent::ADD_DIFF_LAYER_GUIDE_1, 1);
+            }
+            if (localNet.dbNet.routeGuideVios[i] >= db::setting.diffLayerGuideVioThres * 2) {
+                if (j > 3) guides.emplace_back(j - 2, guides[i]);  // do not add to layers 0, 1
+                if ((j + 2) < database.getLayerNum()) guides.emplace_back(j + 2, guides[i]);
+                db::routeStat.increment(db::RouteStage::PRE, db::MiscRouteEvent::ADD_DIFF_LAYER_GUIDE_2, 1);
+            }
+        }
+    }
+
+    // expand guides by cross layer connection
+    expandGuidesToMargin();
 
     db::RouteStatus status = db::RouteStatus::SUCC_NORMAL;
     if (localNet.numOfPins() < 2) {
         status = db::RouteStatus::SUCC_ONE_PIN;
     } else {
+        // expand guides to cover pin
         status = expandGuidesToCoverPins();
-        if (isSucc(status)) {
+        if (db::isSucc(status)) {
+            // init localNet and check
             localNet.initGridBoxes();
             localNet.initConn(localNet.gridPinAccessBoxes, localNet.gridRouteGuides);
             localNet.initNumOfVertices();
@@ -34,15 +56,14 @@ db::RouteStatus PreRoute::run(int numPitchForGuideExpand) {
 }
 
 db::RouteStatus PreRoute::runIterative() {
-    db::RouteStatus status = run(db::setting.defaultGuideExpand);
+    db::RouteStatus status = run(db::rrrIterSetting.defaultGuideExpand);
 
     int iter = 0;
-    int numPitchForGuideExpand = db::setting.defaultGuideExpand;
+    int numPitchForGuideExpand = db::rrrIterSetting.defaultGuideExpand;
     utils::timer singleNetTimer;
     while (status == +db::RouteStatus::FAIL_DETACHED_GUIDE && iter < db::setting.guideExpandIterLimit) {
         iter++;
         numPitchForGuideExpand += iter;
-        // numPitchForGuideExpand += 2;
 
         status = run(numPitchForGuideExpand);
     }
@@ -59,30 +80,28 @@ db::RouteStatus PreRoute::runIterative() {
     return status;
 }
 
-void PreRoute::expandBoxToMargin(vector<db::BoxOnLayer>& routeGuides) {
-    vector<vector<int>> crossLayerConn(routeGuides.size());
-    for (unsigned g1 = 0; g1 < routeGuides.size(); g1++) {
-        db::BoxOnLayer& box1 = routeGuides[g1];
-        for (unsigned g2 = g1 + 1; g2 < routeGuides.size(); g2++) {
-            db::BoxOnLayer& box2 = routeGuides[g2];
+void PreRoute::expandGuidesToMargin() {
+    vector<db::BoxOnLayer>& guides = localNet.routeGuides;
+    vector<vector<int>> crossLayerConn(guides.size());
+    for (unsigned g1 = 0; g1 < guides.size(); g1++) {
+        db::BoxOnLayer& box1 = guides[g1];
+        for (unsigned g2 = g1 + 1; g2 < guides.size(); g2++) {
+            db::BoxOnLayer& box2 = guides[g2];
             if (abs(box1.layerIdx - box2.layerIdx) == 1 && box1.HasIntersectWith(box2)) {
-                crossLayerConn[g2].push_back(g1);
                 crossLayerConn[g1].push_back(g2);
             }
         }
     }
 
-    for (unsigned g1 = 0; g1 < routeGuides.size(); g1++) {
+    for (unsigned g1 = 0; g1 < guides.size(); g1++) {
         for (auto g2 : crossLayerConn[g1]) {
-            if (g2 < g1) continue;
+            Dimension dir1 = database.getLayerDir(guides[g1].layerIdx);
+            Dimension dir2 = database.getLayerDir(guides[g2].layerIdx);
 
-            Dimension dir1 = database.getLayerDir(routeGuides[g1].layerIdx);
-            Dimension dir2 = database.getLayerDir(routeGuides[g2].layerIdx);
-
-            routeGuides[g1][dir2].Update(routeGuides[g2][dir2].low);
-            routeGuides[g1][dir2].Update(routeGuides[g2][dir2].high);
-            routeGuides[g2][dir1].Update(routeGuides[g1][dir1].low);
-            routeGuides[g2][dir1].Update(routeGuides[g1][dir1].high);
+            guides[g1][dir2].Update(guides[g2][dir2].low);
+            guides[g1][dir2].Update(guides[g2][dir2].high);
+            guides[g2][dir1].Update(guides[g1][dir1].low);
+            guides[g2][dir1].Update(guides[g1][dir1].high);
         }
     }
 }
@@ -116,7 +135,7 @@ db::RouteStatus PreRoute::expandGuidesToCoverPins() {
                 localNet.routeGuides[bestGuide] = {
                     localNet.routeGuides[bestGuide].layerIdx,
                     localNet.routeGuides[bestGuide].UnionWith(localNet.pinAccessBoxes[i][bestAB])};
-                status = db::RouteStatus::SUCC_DETACHED_PIN_FIXED;
+                    db::routeStat.increment(db::RouteStage::PRE, db::MiscRouteEvent::FIX_DETACHED_PIN, 1);
             }
         }
     }

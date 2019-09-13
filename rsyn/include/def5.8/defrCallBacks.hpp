@@ -20,9 +20,9 @@
 // For updates, support, or to become part of the LEF/DEF Community,
 // check www.openeda.org for details.
 // 
-//  $Author: icftcm $
+//  $Author: dell $
 //  $Revision: #1 $
-//  $Date: 2014/02/10 $
+//  $Date: 2017/06/06 $
 //  $State:  $
 // *****************************************************************************
 // *****************************************************************************
@@ -41,7 +41,7 @@ BEGIN_LEFDEF_PARSER_NAMESPACE
 class defrCallbacks {
 public:
     defrCallbacks();
-    static void reset();
+
     void SetUnusedCallbacks(defrVoidCbkFnType f);
 
     defrStringCbkFnType DesignCbk;
@@ -151,8 +151,6 @@ public:
 
 
 };
-
-extern defrCallbacks *defCallbacks;
 
 END_LEFDEF_PARSER_NAMESPACE
 

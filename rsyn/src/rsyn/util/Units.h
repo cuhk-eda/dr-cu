@@ -117,7 +117,13 @@ public:
 		} // end switch
 		return "";  // just for warning sake
 	} // end method
-	
+
+	//! @brief Returns the default unit string given a measure. For instance,
+	//!        return "fC" for capacitance and "mW" for power.
+	static std::string getDefaultInternalUnitString(const Measure measure) {
+		return getUnitPrefixSymbol(getInternalUnitPrefix(measure)) + getMeasureSymbol(measure);
+	} // end method
+
 	static double convertUnits(
 			const double sourceValue,
 			const UnitPrefix sourceUnitPrefix, 

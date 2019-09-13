@@ -45,6 +45,7 @@ public:
 	std::vector<Rsyn::PhysicalViaRuleGenerate> clsPhysicalViaRuleGenerates;
 	std::vector<PhysicalSpecialNet> clsPhysicalSpecialNets;
 	std::vector<PhysicalTracks> clsPhysicalTracks;
+	std::vector<PhysicalGCell> clsPhysicalGCell;
 	std::vector<Rsyn::PhysicalRoutingGrid> clsPhysicalRoutingGrids;
 	std::unordered_map<std::string, int> clsMapPhysicalSites;
 	std::unordered_map<std::string, std::size_t> clsMapPhysicalRegions;
