@@ -56,15 +56,6 @@ Rsyn::PhysicalSymmetry getPhysicalSymmetry(const std::string &rowSymmetry);
 //! Converts Symmetry from enum to string, respectively.
 std::string getPhysicalSymmetry(const Rsyn::PhysicalSymmetry rowSymmetry);
 
-// ! @brief check if PhysicalSymmetry has symmetry to X.
-bool isPhysicalSymmetryX(const Rsyn::PhysicalSymmetry symmetry);
-
-// ! @brief check if PhysicalSymmetry has symmetry to Y.
-bool isPhysicalSymmetryY(const Rsyn::PhysicalSymmetry symmetry);
-
-// ! @brief check if PhysicalSymmetry has symmetry to XR90.
-bool isPhysicalSymmetryR90(const Rsyn::PhysicalSymmetry symmetry);
-
 //! Converts Site Class from string to enum, respectively.
 Rsyn::PhysicalSiteClass getPhysicalSiteClass(const std::string & siteClass);
 

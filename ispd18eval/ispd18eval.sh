@@ -51,7 +51,6 @@ if [ -f $evalTcl ] ; then
 fi
 
 echo "#evaluation script for ISPD 2018 contest" > $evalTcl
-echo "setMultiCpuUsage -localCpu $numThread" > $evalTcl
 echo 'source ispd18eval.tcl' >> $evalTcl
 echo "evaluate $inputLef $outputDef $evalGeoRpt $evalConRpt" >> $evalTcl
 echo 'exit' >>$evalTcl

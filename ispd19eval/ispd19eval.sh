@@ -81,7 +81,6 @@ else
 fi
 
 echo "#evaluation script for ISPD 2019 contest" > $evalTcl
-echo "setMultiCpuUsage -localCpu $numThread" > $evalTcl
 echo 'source ispd19eval.tcl' >> $evalTcl
 if [ "$method" = 'a' ] ; then
     echo "evaluate $inputLef $inputDef $trimmedDef $evalGeoRpt $evalConRpt" >> $evalTcl

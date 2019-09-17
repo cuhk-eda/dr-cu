@@ -252,9 +252,6 @@ public:
 
 	int getNumPhysicalRoutingGrids() const;
 	
-	//! @brief check if the orientations are equivalent based on symmetry.
-	bool checkEquivalentOrientations(Rsyn::PhysicalSymmetry symmetry, Rsyn::PhysicalOrientation orient1, Rsyn::PhysicalOrientation orient2) const;
-
 	//! @brief	Returns the total number of spacing objects.  
 	std::size_t getNumPhysicalSpacing() const;
 	//! @brief	Returns a reference to the vector of PhysicalSpacing. 

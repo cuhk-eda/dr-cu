@@ -15,7 +15,7 @@ IEEE/ACM Asia and South Pacific Design Automation Conference (ASPDAC), Tokyo, Ja
 ["Dr. CU: Detailed Routing by Sparse Grid Graph and Minimum-Area-Captured Path Search"](https://doi.org/10.1109/TCAD.2019.2927542),
 accepted by IEEE Transactions on Computer-Aided Design of Integrated Circuits and Systems (TCAD).
 * Haocheng Li, Gengjie Chen, Bentian Jiang, Jingsong Chen, and Evangeline F. Y. Young,
-Dr. CU 2.0: A Scalable Detailed Routing Framework with Correct-by-Construction Design Rule Satisfaction,
+"Dr. CU 2.0: A Scalable Detailed Routing Framework with Correct-by-Construction Design Rule Satisfaction",
 IEEE/ACM International Conference on Computer-Aided Design (ICCAD), Westminster, CO, USA, Nov 4-7, 2019.
 
 (Dr. CU supports [ISPD'18 benchmarks](http://www.ispd.cc/contests/18/#benchmarks)
@@ -25,9 +25,9 @@ This version of code is consistent with the ICCAD paper.)
 ## 1. How to Build
 
 **Step 1:** Download the source code. For example,
-~~~
+```bash
 $ git clone https://github.com/cuhk-route/dr-cu
-~~~
+```
 
 **Step 2:** Go to the project root and build by
 ~~~

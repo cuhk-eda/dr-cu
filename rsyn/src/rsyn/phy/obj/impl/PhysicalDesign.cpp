@@ -1253,17 +1253,4 @@ void PhysicalDesign::initLayerViaManager() {
 
 // -----------------------------------------------------------------------------
 
-bool PhysicalDesign::checkEquivalentOrientations(Rsyn::PhysicalSymmetry symmetry, Rsyn::PhysicalOrientation orient1,
-	Rsyn::PhysicalOrientation orient2) const {
-
-	std::cout << "TODO " << __func__ << " at " << __FILE__ << "\n";
-	//	if(Rsyn::isPhysicalSymmetryX(symmetry)) {
-	//		return orient1 == Rsyn::ORIENTATION_N ||
-	//	} // end if 
-
-	return false;
-} // end method 
-
-// -----------------------------------------------------------------------------
-
 } // end namespace
