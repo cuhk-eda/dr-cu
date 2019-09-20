@@ -30,10 +30,10 @@ $ git clone https://github.com/cuhk-route/dr-cu
 ```
 
 **Step 2:** Go to the project root and build by
-~~~
+```bash
 $ cd dr-cu
 $ scripts/build.py -o release
-~~~
+```
 
 Note that this will generate two folders under the root, `build` and `run` (`build` contains intermediate files for build/compilation, while `run` contains binaries and auxiliary files).
 More details are in [`scripts/build.py`](scripts/build.py).
@@ -138,7 +138,7 @@ Consistent with the contest, eight threads are used.
 | `ispd19_test7`  | 122558107.84 | 4833913  | 883097.59  | 102010 | 45009.73  | 24305 | 607014.34  | 2423   | 899.00  | 1916   | 21733 | 1682 | 753  | 48   | 3512  | N/A  | 0  | **98736640**  | **20.82** | **7165**  |
 | `ispd19_test8`  | 188472592.09 | 7365292  | 1225631.51 | 163218 | 72500.42  | 36390 | 729298.28  | 3048   | 1070.81 | 2830   | 4292  | 2793 | 1266 | 81   | 5903  | N/A  | 0  | **136530155** | **30.96** | **10714** |
 | `ispd19_test9`  | 285390772.80 | 12249476 | 1881593.79 | 276221 | 125462.74 | 60624 | 1213996.98 | 6646   | 1933.66 | 5010   | 6815  | 5157 | 3484 | 133  | 9484  | N/A  | 0  | **214519790** | **49.40** | **15010** |
-| `ispd19_test10` | 282178218.27 | 12544541 | 1821064.92 | 255274 | 127318.93 | 60621 | 1412830.92 | 6879   | 1984.04 | 4855   | 6769  | 4872 | 2990 | 136  | 10429 | N/A  | 0  | **214337743** | **50.72** | **15932** |
+| `ispd19_test10` | 282178218.27 | 12544541 | 1821064.92 | 255274 | 127318.93 | 60621 | 1412830.92 | 6879   | 1984.04 | 4855   | 6769  | 4872 | 2990 | 136  | 10429 | N/A  | 0  | **214337744** | **50.72** | **15932** |
 
 (WL for "wirelength", sv for "single-cut via", og for "out-of-guide", ot for "off-track", ww for "wrong-way")
 

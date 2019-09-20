@@ -115,8 +115,8 @@ public:
 
 private:
 
-	Point clsUpper;
 	Point clsLower;
+	Point clsUpper;
 
 }; // end class
 

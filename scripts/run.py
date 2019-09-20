@@ -12,7 +12,7 @@ binary = 'ispd19dr'
 parser = argparse.ArgumentParser()
 parser.add_argument('benchmarks', choices=all_benchmarks.get_choices(), nargs='+', metavar='BENCHMARK',
                     help='Choices are ' + ', '.join(all_benchmarks.get_choices()))
-parser.add_argument('-s', '--steps', choices=['route', 'eval'], nargs='+', default=['route'])
+parser.add_argument('-s', '--steps', choices=['route', 'eval', 'view'], nargs='+', default=['route'])
 parser.add_argument('-p', '--benchmark_path')
 parser.add_argument('-t', '--threads', type=int, default=8)
 args = parser.parse_args()
@@ -63,6 +63,17 @@ def evaluate():
     run('mv *.log innovus.* eval.*.rpt {} 2>/dev/null'.format(bm_log_dir))
 
 
+def view():
+    file = open("tmp.tcl", "w")
+    file.write("loadLefFile {}.input.lef\n".format(file_name_prefix))
+    file.write("loadDefFile {}/{}.solution.def\n".format(bm_log_dir, bm.full_name))
+    file.write("setMultiCpuUsage -localCpu {}\n".format(args.threads))
+    file.write("win\n")
+    file.close()
+    run('innovus -init tmp.tcl')
+    run('rm innovus.* *.drc.rpt *.solution.def.v tmp.tcl')
+
+
 for bm in bms:
     bm_log_dir = '{}/{}'.format(log_dir, bm.abbr_name)
     file_name_prefix = '{0}/ispd20{1}/{2}/{2}'.format(bm_path, bm.full_name[4:6], bm.full_name)
@@ -76,3 +87,5 @@ for bm in bms:
         route()
     if 'eval' in args.steps:
         evaluate()
+    if 'view' in args.steps:
+        view()
