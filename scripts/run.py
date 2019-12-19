@@ -68,6 +68,7 @@ def view():
     file.write("loadLefFile {}.input.lef\n".format(file_name_prefix))
     file.write("loadDefFile {}/{}.solution.def\n".format(bm_log_dir, bm.full_name))
     file.write("setMultiCpuUsage -localCpu {}\n".format(args.threads))
+    file.write("setDrawView place\n")
     file.write("win\n")
     file.close()
     run('innovus -init tmp.tcl')

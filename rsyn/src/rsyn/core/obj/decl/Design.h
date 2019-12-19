@@ -375,11 +375,11 @@ class CollectionOfLibraryPinsFilteredByDirection {
 protected:
 	std::vector<LibraryPin> &pins;
 	Direction direction;
-	int index;
+	size_t index = 0;
 public:
 	CollectionOfLibraryPinsFilteredByDirection( std::vector<LibraryPin> &pins,
 			Direction direction) 
-			: pins(pins), direction(direction), index(0) {}
+			: pins(pins), direction(direction) {}
 
 	bool filter() { return current().getDirection() != direction; }
 	bool stop() { return index >= pins.size(); }

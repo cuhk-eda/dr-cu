@@ -68,12 +68,21 @@ db::RouteStatus PreRoute::runIterative() {
         status = run(numPitchForGuideExpand);
     }
 
+    const std::string name = localNet.getName();
     if (iter >= 1) {
-        log() << "Warning: Net " << localNet.getName() << " expands " << iter << " iterations"
+        log() << "Warning: Net " << name << " expands " << iter << " iterations"
               << ", which takes " << singleNetTimer.elapsed() << " s in total." << std::endl;
-        if (status == +db::RouteStatus::FAIL_DETACHED_GUIDE) {
-            log() << "Error: Exceed the guideExpandIterLimit, but still FAIL_DETACHED_GUIDE" << std::endl;
-        }
+    }
+
+    switch (status) {
+        case +db::RouteStatus::FAIL_DETACHED_GUIDE:
+            log() << "Error: Exceed the guideExpandIterLimit, but Net " << name << " still FAIL_DETACHED_GUIDE\n";
+            break;
+        case +db::RouteStatus::FAIL_DETACHED_PIN:
+            log() << "Error: Net " << name << " FAIL_DETACHED_PIN\n";
+            break;
+        default:
+            break;
     }
 
     db::routeStat.increment(db::RouteStage::PRE, status);
