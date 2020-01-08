@@ -393,10 +393,10 @@ public:
 class CollectionOfLibraryPins {
 protected:
 	std::vector<LibraryPin> &pins;
-	int index;
+	size_t index = 0;
 public:
 	CollectionOfLibraryPins(std::vector<LibraryPin> &pins) 
-			: pins(pins), index(0) {}
+			: pins(pins) {}
 
 	bool filter() { return false; }
 	bool stop() { return index >= pins.size(); }
