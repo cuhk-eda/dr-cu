@@ -26,7 +26,7 @@ This version of code is consistent with the ICCAD paper.)
 
 **Step 1:** Download the source code. For example,
 ```bash
-$ git clone https://github.com/cuhk-route/dr-cu
+$ git clone https://github.com/cuhk-eda/dr-cu
 ```
 
 **Step 2:** Go to the project root and build by
