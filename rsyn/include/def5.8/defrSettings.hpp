@@ -1,6 +1,6 @@
 // *****************************************************************************
 // *****************************************************************************
-// Copyright 2013-2014, Cadence Design Systems
+// Copyright 2013-2019, Cadence Design Systems
 // 
 // This  file  is  part  of  the  Cadence  LEF/DEF  Open   Source
 // Distribution,  Product Version 5.8. 
@@ -36,7 +36,8 @@
 #include <string>
 #include <map>
 
-#define DEF_DEBUG_IDS 100
+#define  DEF_DEBUG_IDS 100
+#define  defMaxOxides 32
 
 BEGIN_LEFDEF_PARSER_NAMESPACE
 
@@ -115,6 +116,8 @@ public:
 
     int UnusedCallbacks[CBMAX];
     int MsgLimit[DEF_MSGS];
+
+    static const char*  defOxides[defMaxOxides];
 };
 
 

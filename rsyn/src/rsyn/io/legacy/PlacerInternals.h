@@ -136,13 +136,11 @@ struct Library {
 	struct Pin {
 		std::string name;
 		std::string direction;
-		std::string metalLayer;
+		std::string metalLayer = "null";
 		Bounds bound;
 		std::vector<Bounds> routerPins;
-		double dx;
-		double dy;
-		
-		Pin() : dx(0), dy(0), metalLayer("null") {}
+		double dx = 0;
+		double dy = 0;
 	};
 	
 	struct Obstruction {

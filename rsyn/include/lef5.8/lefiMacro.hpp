@@ -1,6 +1,6 @@
 // *****************************************************************************
 // *****************************************************************************
-// Copyright 2012 - 2017, Cadence Design Systems
+// Copyright 2012 - 2019, Cadence Design Systems
 // 
 // This  file  is  part  of  the  Cadence  LEF/DEF  Open   Source
 // Distribution,  Product Version 5.8. 
@@ -21,8 +21,8 @@
 // check www.openeda.org for details.
 // 
 //  $Author: dell $
-//  $Revision: #1 $
-//  $Date: 2017/06/06 $
+//  $Revision: #9 $
+//  $Date: 2019/09/04 $
 //  $State:  $
 // *****************************************************************************
 // *****************************************************************************
@@ -64,7 +64,6 @@ public:
 
   void Init();
   void clear();
-  void Destroy();
 
   void setAntennaModel(int oxide);
   void addAntennaGateArea(double value, const char* layer);
@@ -401,7 +400,7 @@ protected:
   int numAntennaModel_;
   int antennaModelAllocated_;
   int curAntennaModelIndex_;     // save the current index of the antenna
-  lefiPinAntennaModel** antennaModel_;
+  lefiPinAntennaModel** pinAntennaModel_;
 
   int numAntennaSize_;
   int antennaSizeAllocated_;

@@ -193,20 +193,25 @@ MetalLayer::MetalLayer(Rsyn::PhysicalLayer rsynLayer,
 
     // Rsyn::PhysicalTracks (DEF)
     // note: crossPoints will be initialized in LayerList
-    for (const Rsyn::PhysicalTracks& rsynTrack : rsynTracks) {
-        if ((rsynTrack.getDirection() == Rsyn::TRACK_HORIZONTAL) == (direction == X)) {
-            continue;
+    if (rsynTracks.empty()) {
+        log() << "Error in " << __func__ << ": For " << name << ", tracks is empty...\n";
+        pitch = width + parallelWidthSpace[0][0];
+    } else {
+        for (const Rsyn::PhysicalTracks& rsynTrack : rsynTracks) {
+            if ((rsynTrack.getDirection() == Rsyn::TRACK_HORIZONTAL) == (direction == X)) {
+                continue;
+            }
+            pitch = rsynTrack.getSpace();
+            DBU location = rsynTrack.getLocation();
+            for (int i = 0; i < rsynTrack.getNumberOfTracks(); ++i) {
+                tracks.emplace_back(location);
+                location += pitch;
+            }
         }
-        pitch = rsynTrack.getSpace();
-        DBU location = rsynTrack.getLocation();
-        for (int i = 0; i < rsynTrack.getNumberOfTracks(); ++i) {
-            tracks.emplace_back(location);
-            location += pitch;
-        }
+        sort(tracks.begin(), tracks.end(), [](const Track& lhs, const Track& rhs) { return lhs.location < rhs.location; });
+        pitch = tracks[1].location - tracks[0].location;
     }
     delete rsynLayer.getLayer();
-    sort(tracks.begin(), tracks.end(), [](const Track& lhs, const Track& rhs) { return lhs.location < rhs.location; });
-    pitch = tracks[1].location - tracks[0].location;
 
     // safe margin
     minAreaMargin = ceil(((minArea / width) + width) * 1.0 / pitch) * pitch * 2;

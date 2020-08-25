@@ -1,6 +1,6 @@
 Dr. CU
 ======================================
-Dr. CU is a VLSI detailed routing tool developed by the research team supervised by Prof. Evangeline F. Y. Young in The Chinese University of Hong Kong (CUHK). Different from global routing, detailed routing takes care of many detailed design rules and is performed on a significantly larger routing grid graph. In advanced technology nodes, it becomes the most complicated and time-consuming stage in the VLSI physical design flow. To tackle the challenges, we design and implement several efficient and effective data structures and algorithms under a holistic framework:
+Dr. CU is a VLSI detailed routing tool developed by the research team supervised by Prof. Evangeline F.Y. Young in The Chinese University of Hong Kong (CUHK). Different from global routing, detailed routing takes care of many detailed design rules and is performed on a significantly larger routing grid graph. In advanced technology nodes, it becomes the most complicated and time-consuming stage in the VLSI physical design flow. To tackle the challenges, we design and implement several efficient and effective data structures and algorithms under a holistic framework:
 * A set of two-level sparse data structures
 * An optimal correct-by-construction path search
 * An efficient bulk synchronous parallel scheme
@@ -8,13 +8,13 @@ Dr. CU is a VLSI detailed routing tool developed by the research team supervised
 
 More details are in the following papers:
 
-* Gengjie Chen, Chak-Wa Pui, Haocheng Li, Jingsong Chen, Bentian Jiang, and Evangeline F. Y. Young,
+* Gengjie Chen, Chak-Wa Pui, Haocheng Li, Jingsong Chen, Bentian Jiang, and Evangeline F.Y. Young,
 ["Detailed Routing by Sparse Grid Graph and Minimum-Area-Captured Path Search"](https://doi.org/10.1145/3287624.3287678),
 IEEE/ACM Asia and South Pacific Design Automation Conference (ASPDAC), Tokyo, Japan, Jan 21-24, 2019.
-* Gengjie Chen, Chak-Wa Pui, Haocheng Li, and Evangeline F. Y. Young,
+* Gengjie Chen, Chak-Wa Pui, Haocheng Li, and Evangeline F.Y. Young,
 ["Dr. CU: Detailed Routing by Sparse Grid Graph and Minimum-Area-Captured Path Search"](https://doi.org/10.1109/TCAD.2019.2927542),
-accepted by IEEE Transactions on Computer-Aided Design of Integrated Circuits and Systems (TCAD).
-* Haocheng Li, Gengjie Chen, Bentian Jiang, Jingsong Chen, and Evangeline F. Y. Young,
+IEEE Transactions on Computer-Aided Design of Integrated Circuits and Systems (TCAD), vol. 39, no. 9, pp. 1902–1915, 2020.
+* Haocheng Li, Gengjie Chen, Bentian Jiang, Jingsong Chen, and Evangeline F.Y. Young,
 ["Dr. CU 2.0: A Scalable Detailed Routing Framework with Correct-by-Construction Design Rule Satisfaction"](https://doi.org/10.1109/ICCAD45719.2019.8942074),
 IEEE/ACM International Conference on Computer-Aided Design (ICCAD), Westminster, CO, USA, Nov 4-7, 2019.
 
@@ -140,7 +140,7 @@ Consistent with the contest, eight threads are used.
 | `ispd19_test9`  | 285390772.80 | 12249476 | 1881593.79 | 276221 | 125462.74 | 60624 | 1213996.98 | 6646   | 1933.66 | 5010   | 6815  | 5157 | 3484 | 133  | 9484  | N/A  | 0  | **214519790** | **49.40** | **15010** |
 | `ispd19_test10` | 282178218.27 | 12544541 | 1821064.92 | 255274 | 127318.93 | 60621 | 1412830.92 | 6879   | 1984.04 | 4855   | 6769  | 4872 | 2990 | 136  | 10429 | N/A  | 0  | **214337744** | **50.72** | **15932** |
 
-(WL for "wirelength", sv for "single-cut via", og for "out-of-guide", ot for "off-track", ww for "wrong-way", a for "area", prl for "parallel run length spacing")
+(WL for "wirelength", v for "via", sv for "single-cut via", og for "out-of-guide", ot for "off-track", ww for "wrong-way", a for "area", prl for "parallel run length spacing")
 
 ## 5. License
 
@@ -160,7 +160,7 @@ All rights reserved
 
 
 
-CU-SD LICENSE (adapted from the original BSD license) Redistribution of the any code, with or without modification, are permitted provided that the conditions below are met. 
+CU-SD LICENSE (adapted from the original BSD license) Redistribution of the any code, with or without modification, are permitted provided that the conditions below are met.
 
 
 

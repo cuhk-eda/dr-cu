@@ -118,7 +118,6 @@ public:
 
     FILE*  defrLog; 
     char   defPropDefType; // save the current type of the property
-    char*  ch; 
     char*  defMsg; 
     char*  deftoken; 
     char*  uc_token;
@@ -171,6 +170,7 @@ public:
     int  hasNameCase; // keep track NAMESCASESENSITIVE is in the file
     int  hasOpenedDefLogFile; 
     int  hasPort; // keep track is port defined in a Pin
+    int  hadPortOnce; // to restrict implicit ports if the Pin already has any port
     int  hasVer; // keep track VERSION is in the file
     int  hasFatalError; // don't report errors after the file end.
     int  iOTimingWarnings; 

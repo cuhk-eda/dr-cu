@@ -1,6 +1,6 @@
 // *****************************************************************************
 // *****************************************************************************
-// Copyright 2012 - 2017, Cadence Design Systems
+// Copyright 2012 - 2019, Cadence Design Systems
 // 
 // This  file  is  part  of  the  Cadence  LEF/DEF  Open   Source
 // Distribution,  Product Version 5.8. 
@@ -36,6 +36,8 @@
 #include <set>
 
 #include "lefrReader.hpp"
+
+#define  lefMaxOxides 32
 
 BEGIN_LEFDEF_PARSER_NAMESPACE
 
@@ -145,6 +147,7 @@ public:
     int  dAllMsgs; 
 
     lefrProps lefProps;
+    static const char*  lefOxides[lefMaxOxides];
 };
 
 extern lefrSettings* lefSettings;
