@@ -25,6 +25,7 @@ public:
 
     // on-grid route result
     vector<std::shared_ptr<GridSteiner>> gridTopo;
+    vector<std::shared_ptr<GridSteiner>> gridTopo_copy;
     void postOrderVisitGridTopo(const std::function<void(std::shared_ptr<GridSteiner>)>& visit) const;
 
     // print
@@ -43,6 +44,8 @@ public:
     // more route guide information
     vector<int> routeGuideVios;
     RTrees routeGuideRTrees;
+    vector<int> routeGuideVios_copy;
+    RTrees routeGuideRTrees_copy;
 
     // for initialization
     void initPinAccessBoxes(Rsyn::Pin rsynPin, RsynService& rsynService, vector<BoxOnLayer>& accessBoxes, const DBU libDBU);
@@ -56,6 +59,8 @@ public:
     vector<DefWireSegmentDscp> defWireSegments;
     void clearPostRouteResult();
     void clearResult();
+    void stash();
+    void reset();
 };
 
 class NetList {

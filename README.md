@@ -140,7 +140,7 @@ Consistent with the contest, eight threads are used.
 | `ispd19_test9`  | 285390772.80 | 12249476 | 1881593.79 | 276221 | 125462.74 | 60624 | 1213996.98 | 6646   | 1933.66 | 5010   | 6815  | 5157 | 3484 | 133  | 9484  | N/A  | 0  | **214519790** | **49.40** | **15010** |
 | `ispd19_test10` | 282178218.27 | 12544541 | 1821064.92 | 255274 | 127318.93 | 60621 | 1412830.92 | 6879   | 1984.04 | 4855   | 6769  | 4872 | 2990 | 136  | 10429 | N/A  | 0  | **214337744** | **50.72** | **15932** |
 
-(WL for "wirelength", v for "via", sv for "single-cut via", og for "out-of-guide", ot for "off-track", ww for "wrong-way", a for "area", prl for "parallel run length spacing")
+(WL for "wirelength", v for "via", sv for "single-cut via", og for "out-of-guide", ot for "off-track", ww for "wrong-way", a for "area", prl for "parallel-run-length spacing", eol for "end-of-line spacing")
 
 ## 5. License
 

@@ -102,6 +102,18 @@ void Net::clearResult() {
     clearPostRouteResult();
 }
 
+void Net::stash() {
+    routeGuideVios_copy = routeGuideVios;
+    routeGuideRTrees_copy = routeGuideRTrees;
+    gridTopo_copy = gridTopo;
+}
+
+void Net::reset() {
+    routeGuideVios = (routeGuideVios_copy);
+    routeGuideRTrees = (routeGuideRTrees_copy);
+    gridTopo = gridTopo_copy;
+}
+
 void Net::initPinAccessBoxes(Rsyn::Pin rsynPin, RsynService& rsynService, vector<BoxOnLayer>& accessBoxes, const DBU libDBU) {
     // PhysicalPort
     if (rsynPin.isPort()) {
@@ -171,6 +183,7 @@ void NetList::init(RsynService& rsynService) {
     if (db::setting.dbVerbose >= +db::VerboseLevelT::MIDDLE) {
         log() << "Init NetList ..." << std::endl;
     }
+    nets.clear();
     nets.reserve(rsynService.design.getNumNets());
     int numPins = 0;
     for (Rsyn::Net net : rsynService.module.allNets()) {

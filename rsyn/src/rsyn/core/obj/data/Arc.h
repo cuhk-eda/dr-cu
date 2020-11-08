@@ -17,12 +17,12 @@ namespace Rsyn {
 		
 struct ArcData : ObjectData {
 	ArcType type : 3;
-	Pin from;
-	Pin to;
+	Pin from{nullptr};
+	Pin to{nullptr};
 	
 	union {
 		// Place holder for initialization...
-		void * extra;
+		void * extra{nullptr};
 		
 		// Meaningful only when this is arc belongs to a cell.
 		LibraryArcData * libraryArcData;
@@ -31,12 +31,7 @@ struct ArcData : ObjectData {
 		NetData * netData;
 	}; // end union
 
-	ArcData() : 
-		type(UNKNOWN_ARC_TYPE),
-		extra(nullptr),
-		from(nullptr), 
-		to(nullptr) {
-	} // end constructor
+  ArcData() :type(UNKNOWN_ARC_TYPE) {}
 }; // end struct
 
 } // end namespace

@@ -30,27 +30,19 @@ struct LibraryCellTagData {
 // -----------------------------------------------------------------------------
 
 struct LibraryCellData : ObjectData {
-	Design design;
+	Design design{nullptr};
 	std::string name;
 	std::vector<LibraryPin> pins;
 	std::vector<LibraryArc> arcs;
-	DBUxy size;
+	DBUxy size{0, 0};
 
 	// User flags.
 	LibraryCellTagData tag;
 
 	// TODO: use array
-	int numInputPins;
-	int numOutputPins;
-	int numInOutPins;
-
-	LibraryCellData() : 
-		design(nullptr),
-		numInputPins(0),
-		numOutputPins(0), 
-		numInOutPins(0),
-		size(0, 0) {
-	} // constructor
+	int numInputPins{0};
+	int numOutputPins{0};
+	int numInOutPins{0};
 }; // end struct
 
 } // end namespace

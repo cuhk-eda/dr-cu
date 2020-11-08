@@ -72,6 +72,8 @@ public:
 
     void init();
     void clear();
+    void stash();
+    void reset();
     void setUnitVioCost(double discount = 1.0);
 
     // Get unit cost
@@ -178,12 +180,17 @@ public:
     void removeWrongWayWireSegment(const WrongWaySegment& wws, int netIdx);
 
     // Print stat
-    void printAllUsageAndVio() const;
+    double printAllUsageAndVio() const;
+    double getScore();
+    std::array<double, 4> getAllVio() const;
     // usage
     void getAllWireUsage(const vector<int>& buckets, vector<int>& wireUsageGrid, vector<DBU>& wireUsageLength) const;
     void getAllViaUsage(const vector<int>& buckets, const ViaMapT& routedViaMap, vector<int>& viaUsage) const;
     std::pair<double, double> printAllUsage() const;
     std::string getRangeStr(const vector<int>& buckets, int i) const;
+    void getNetWireVioUsage(std::unordered_map<int, int>& via_usage,
+                            std::unordered_map<int, float>& wire_usage_length,
+                            std::unordered_map<int, std::set<int>>& layer_usage);
     // violations
     void getAllWireShortVio(vector<int>& shortNum, vector<DBU>& shortLen) const;
     void getAllPoorWire(vector<int>& num, vector<DBU>& len) const;
@@ -232,6 +239,7 @@ protected:
     // 3. wires with history violations
     // (layerIdx, trackIdx) -> all (crossPointRange, discountedUsage)
     vector<vector<boost::icl::interval_map<int, HistWire>>> histWireMap;
+    vector<vector<boost::icl::interval_map<int, HistWire>>> histWireMap_copy;
 
     // Vias
     // (layerIdx, trackIdx) -> all (crossPointIdx, netIdx)
@@ -245,6 +253,8 @@ protected:
     vector<vector<vector<std::pair<int, ViaData*>>>> poorViaMap;
     vector<bool> usePoorViaMap;
     vector<vector<std::unordered_map<int, HistUsageT>>> histViaMap;
+    vector<vector<std::unordered_map<int, HistUsageT>>> histViaMap_copy;
+    std::array<double, 4> _vio_usage;
 };
 
 }  //   namespace db

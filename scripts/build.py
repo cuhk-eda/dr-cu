@@ -8,7 +8,7 @@ run_files = 'scripts/*.py ispd18eval ispd19eval'
 def run(command):
     if args.print_commands:
         print(command)
-    if os.system(command) is not 0:
+    if os.system(command) != 0:
         if not args.print_commands:
             print(command)
         quit()

@@ -11,4 +11,5 @@ public:
     static void clearMinAreaRouteResult(db::Net& dbNet);
     static void commitViaTypes(db::Net& dbNet);
     static bool checkViolation(db::Net& dbNet);
+    static double getNetVioCost(const db::Net &dbNet);
 };

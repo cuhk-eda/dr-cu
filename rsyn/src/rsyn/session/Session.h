@@ -102,10 +102,14 @@ public:
 	//        static variable signaling that the engine was initialized is
 	//        stored inside this function. In this way, we can guarantee it will
 	//        be initialized to false before being used.
-	static bool checkInitialized(const bool markAsInitialized = false) {
+	static bool checkInitialized(const bool markAsInitialized = false, const bool reset = false) {
 		static bool sessionInitialized = false;
-		if (markAsInitialized)
+		if (markAsInitialized) {
 			sessionInitialized = true;
+		}
+		if(reset) {
+			sessionInitialized = false;
+		}
 		return sessionInitialized;
 	} // end method
 
@@ -237,7 +241,7 @@ private:
 			if (!isServiceRunning(srv.first))
 				continue;
 			out << "\t[R] " << srv.first << "\n";
-		} // end for 
+		} // end for
 		// print only stopped services 
 		for (std::pair<std::string, ServiceInstantiatonFunction> srv : sessionData->clsServiceInstanciationFunctions) {
 			if (isServiceRunning(srv.first))

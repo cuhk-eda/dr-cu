@@ -33,8 +33,8 @@ struct DesignData {
 	std::vector<std::string> instanceNames;
 	std::vector<std::string> netNames;
 	
-	int anonymousInstanceId;
-	int anonymousNetId;
+	int anonymousInstanceId{0};
+	int anonymousNetId{0};
 	
 	std::unordered_map<std::string, Instance> instanceMapping;
 	std::unordered_map<std::string, Net> netMapping;
@@ -43,30 +43,20 @@ struct DesignData {
 	std::array<LibraryCell, NUM_SIGNAL_DIRECTIONS> portLibraryCells;
 	std::set<Cell> ports[NUM_SIGNAL_DIRECTIONS];
 	
-	std::array<int, NUM_INSTANCE_TYPES> instanceCount;
+	std::array<int, NUM_INSTANCE_TYPES> instanceCount{0, 0, 0};
 	
 	std::vector<Pin> structuralStartpoints;
 	std::vector<Pin> structuralEndpoints;	
 	std::vector<Net> netsInTopologicalOrder;
 	
-	bool dirty;	
-	bool initialized;
+	bool dirty{false};
+	bool initialized{false};
 	
 	// Used for some netlist traversing (e.g. update topological ordering)...
-	int sign;	
+	int sign{0};
 	
 	// Observers
 	std::array<std::list<DesignObserver *>, NUM_DESIGN_EVENTS> observers;
-	
-	// Constructor
-	DesignData() :
-		initialized(false),
-		dirty(false),
-		anonymousInstanceId(0),
-		anonymousNetId(0),
-		instanceCount({0, 0, 0}),
-		sign(0) {
-	} // end constructor
 }; // end class
 
 } // end namespace

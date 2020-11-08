@@ -30,10 +30,9 @@ class Polygon;
 
 class Rect {
 public:
-
-	Rect() : clsLower(0, 0), clsUpper(0, 0) {}
-	Rect(const DBU x, const DBU y, const DBU w, const DBU h) : clsLower(x, y), clsUpper(x + w, y + h) {}
-	Rect(const Bounds &bounds) : clsLower(bounds.getLower()), clsUpper(bounds.getUpper()) {}
+	Rect() = default;
+	Rect(const DBU x, const DBU y, const DBU w, const DBU h) : clsUpper(x + w, y + h), clsLower(x, y) {}
+	Rect(const Bounds &bounds) : clsUpper(bounds.getUpper()), clsLower(bounds.getLower()) {}
 
 	DBU getX() const {return clsLower.getX();}
 	DBU getY() const {return clsLower.getY();}
@@ -115,8 +114,8 @@ public:
 
 private:
 
-	Point clsLower;
-	Point clsUpper;
+	Point clsUpper{0, 0};
+	Point clsLower{0, 0};
 
 }; // end class
 

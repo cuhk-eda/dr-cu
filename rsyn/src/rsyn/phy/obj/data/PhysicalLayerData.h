@@ -34,7 +34,7 @@ namespace Rsyn {
 
 class PhysicalLayerData : public PhysicalObject {
 public:
-    lefiLayer* clsLayer = nullptr;
+	lefiLayer* clsLayer = nullptr;
 	DBU clsWidth = 0;
 	int clsIndex = -1;
 	int clsRelativeIndex = -1;

@@ -990,8 +990,6 @@ void DEFControlParser::writeFullDEF(const string &filename, const DefDscp &defDs
 
 						bool hasVia = false;
 						std::string viaName = "";
-						bool hasRect = false;
-						Bounds rect;
 
 						status = defwSpecialNetPathLayer(segment.clsLayerName.c_str());
 						CHECK_STATUS(status);

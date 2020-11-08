@@ -77,27 +77,24 @@ struct Design {
 	};
 
 	struct Track {
-		std::string direction; //X or Y
-		int doStart;
-		int doCount;
-		int doStep;
-		int numLayers;
+		std::string direction{"NULL"}; //X or Y
+		int doStart{-1};
+		int doCount{-1};
+		int doStep{-1};
+		int numLayers{-1};
 		std::vector<std::string> layers;
-		Track () : direction("NULL"), doStart(-1), doCount(-1), doStep(-1),
-		numLayers(-1) {}
 	};
 	
 	struct GCellGrid {
-		std::string master; // direction X or Y
-		int doStart;
-		int doCount;
-		int doStep;
-		GCellGrid () : master("null"), doStart(-1), doCount(-1), doStep(-1) {}
+		std::string master{"null"}; // direction X or Y
+		int doStart{-1};
+		int doCount{-1};
+		int doStep{-1};
 	};
 	
 	std::string name;
-	double distanceUnit;
-	double defVersion;
+	double distanceUnit{1.0};
+	double defVersion{-1.0};
 	
 	std::vector<Component> components;
 	std::vector<Pin> ports;
@@ -111,11 +108,6 @@ struct Design {
 	std::vector<GCellGrid> gCellGrids;
 	
 	DieArea dieArea;
-	
-	Design() {
-		distanceUnit = 1;
-		defVersion = -1;
-	}
 }; // end struct
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -124,23 +116,21 @@ struct Design {
 
 struct Library {
 	struct Site {
-		std::string name;
-		std::string classSite;
-		bool hasClass;
-		double w;
-		double h;
-		
-		Site() :name("null"), classSite("null"), hasClass(false), w(0), h(0) {}
+		std::string name{"null"};
+		std::string classSite{"null"};
+		bool hasClass{false};
+		double w{0};
+		double h{0};
 	};
 	
 	struct Pin {
 		std::string name;
 		std::string direction;
-		std::string metalLayer = "null";
+		std::string metalLayer{"null"};
 		Bounds bound;
 		std::vector<Bounds> routerPins;
-		double dx = 0;
-		double dy = 0;
+		double dx{0.0};
+		double dy{0.0};
 	};
 	
 	struct Obstruction {
@@ -152,22 +142,19 @@ struct Library {
 		std::string name;
 		std::string type;
 		std::string site;
-		double w;
-		double h;
+		double w{0.0};
+		double h{0.0};
 		std::vector<Pin> pins;
 		std::vector<Obstruction> obs;
-		Macro () : w(0), h(0) {}
 	}; // end struct
 	
 	struct Layer { // for metals, vias and contacts
-		std::string name;
-		std::string type;
-		std::string direction;
-		double pitch;
-		double width;
-		double spacing;
-		Layer () : name("null"), type("null"), direction("null"), 
-		pitch(-1), width(-1), spacing(-1) {}
+		std::string name{"null"};
+		std::string type{"null"};
+		std::string direction{"null"};
+		double pitch{-1.0};
+		double width{-1.0};
+		double spacing{-1.0};
 	};
 	
 	struct Spacing {
@@ -177,13 +164,11 @@ struct Library {
 	};
 		
 	std::string name;
-	double distanceUnit;
+	double distanceUnit{1.0};
 	std::vector<Macro> macros;
 	std::vector<Site> sites;
 	std::vector<Layer> layers;
 	std::vector<Spacing> metalSpaces;
-	
-	Library() : distanceUnit(1) {}	
 }; // end struct
 
 
@@ -209,38 +194,35 @@ struct DefStruct1 {
 	
 	struct DefRow {
 		std::string rowName;
-		std::string rowType;
-		int origX;
-		int origY;
-		int orient;
-		int doCount;
-		int doIncrement;
-		int xStep;
-		int yStep;
-		DefRow () : rowType("core"), origX(0), origY(0), orient(0), doCount(0), doIncrement(0), xStep(0), yStep(0) {}
-		// orient {0, 1, 2, 3, 4, 5, 6, 7} = {N, W, S, E, FN, FW, FS, FE} source: defapi.pdf version 5.8 
+		std::string rowType{"core"};
+		int origX{0};
+		int origY{0};
+		int orient{0};
+		int doCount{0};
+		int doIncrement{0};
+		int xStep{0};
+		int yStep{0};
+		// orient {0, 1, 2, 3, 4, 5, 6, 7} = {N, W, S, E, FN, FW, FS, FE} source: defapi.pdf version 5.8
 	};
 
 	struct DefPortLayer {
-		std::string layerName;
-		int spacing;
-		int designRuleWidth;
+		std::string layerName{"NULL"};
+		int spacing{0};
+		int designRuleWidth{0};
 		Bounds bounds;
-		DefPortLayer() : spacing(0), designRuleWidth(0), layerName("NULL") {}
 	};
 
 	struct DefPort {
 		std::string portName;
 		std::string netName;
-		int special; // 0 is ignored; 1 writes a SPECIAL statement
-		std::string direction; // {NULL, FEEDTHRU, INPUT, INOUT, OUTPUT}
-		std::string use; // {NULL, ANALOG, CLOCK, GROUND, POWER, RESET, SCAN, SIGNAL, TIEOFF}
-		std::string status; // {NULL, COVER, FIXED, PLACED} 
-		int statusX; // placement location; 0 ignore
-		int statusY; // placement location; 0 ignore
-		int orient;  // orient {-1, 0, 1, 2, 3, 4, 5, 6, 7} = {IGNORE, N, W, S, E, FN, FW, FS, FE} source: defapi.pdf version 5.8 
+		int special{0}; // 0 is ignored; 1 writes a SPECIAL statement
+		std::string direction{"NULL"}; // {NULL, FEEDTHRU, INPUT, INOUT, OUTPUT}
+		std::string use{"NULL"}; // {NULL, ANALOG, CLOCK, GROUND, POWER, RESET, SCAN, SIGNAL, TIEOFF}
+		std::string status{"NULL"}; // {NULL, COVER, FIXED, PLACED}
+		int statusX{0}; // placement location; 0 ignore
+		int statusY{0}; // placement location; 0 ignore
+		int orient{-1};  // orient {-1, 0, 1, 2, 3, 4, 5, 6, 7} = {IGNORE, N, W, S, E, FN, FW, FS, FE} source: defapi.pdf version 5.8
 		DefPortLayer clsDefPortLayer;
-		DefPort () : direction("NULL"), orient(-1), special(0), status("NULL"), use("NULL") {}
 	};
 
 	std::vector<DefMacro> clsDefMacros;

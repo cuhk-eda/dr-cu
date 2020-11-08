@@ -28,7 +28,7 @@ struct NetTagData {
 
 struct NetData : ObjectData {
 	// Index in parent module.
-	Index mid;
+	Index mid{std::numeric_limits<Index>::max()};
 
 	// User tags.
 	NetTagData tag;
@@ -37,27 +37,18 @@ struct NetData : ObjectData {
 	std::vector<Pin> pins;
 	
 	// Driver. If multiple-drivers, store one of them without any assumptions.
-	Pin driver;
+	Pin driver{nullptr};
 	
 	// Parent
-	Module parent;
+	Module parent{nullptr};
 	
-	std::array<int, NUM_SIGNAL_DIRECTIONS> numPinsOfType;
+	std::array<int, NUM_SIGNAL_DIRECTIONS> numPinsOfType{0, 0, 0, 0};
 	
 	// Helper used for netlist traversals.
-	int sign;
+	int sign{-1};
 	
 	// Mateus @ 20190204: Adding net use;
-	Use netUse;
-	
-	NetData() : 
-		mid(-1),
-		sign(-1),
-		driver(nullptr), 
-		numPinsOfType({0, 0, 0, 0}),
-		parent(nullptr),
-		netUse(UNKNOWN_USE) {
-	} // end constructor	
+	Use netUse{UNKNOWN_USE};
 }; // end struct
 
 } // end namespace

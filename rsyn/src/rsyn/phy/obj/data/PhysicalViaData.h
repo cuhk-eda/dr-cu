@@ -50,7 +50,7 @@ public:
 	DBU clsOffset[NUM_VIA_LEVELS][2]; // bottomXOffset, bottomYOffset, topXOffset, topYOffset
 	int clsNumRows = 0;
 	int clsNumCols = 0;
-    std::string clsPattern = "";
+	std::string clsPattern = "";
 	float clsCutResistance = 0.0;
 	Rsyn::PhysicalLayerData *clsLayers[NUM_VIA_LAYERS]; // bottom, cut, top
 	std::vector<Rsyn::PhysicalViaGeometry>  clsViaGeometries [NUM_VIA_LAYERS]; // bottom, cut, top

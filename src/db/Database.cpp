@@ -7,11 +7,12 @@ db::Database database;
 namespace db {
 
 void Database::init() {
-    log() << std::endl;
-    log() << "################################################################" << std::endl;
-    log() << "Start initializing database" << std::endl;
-    log() << std::endl;
-
+    if (setting.dbVerbose >= +db::VerboseLevelT::MIDDLE) {
+        log() << std::endl;
+        log() << "################################################################" << std::endl;
+        log() << "Start initializing database" << std::endl;
+        log() << std::endl;
+    }
     rsynService.init();
 
     auto dieBound = rsynService.physicalDesign.getPhysicalDie().getBounds();

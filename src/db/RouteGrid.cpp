@@ -99,6 +99,17 @@ void RouteGrid::clear() {
         }
     }
     poorViaMap.clear();
+    usePoorViaMap.clear();
+}
+
+void RouteGrid::stash() {
+    histWireMap_copy = histWireMap;
+    histViaMap_copy = histViaMap;
+}
+
+void RouteGrid::reset() {
+    histWireMap = histWireMap_copy;
+    histViaMap = histViaMap_copy;
 }
 
 void RouteGrid::setUnitVioCost(double discount) {
@@ -931,7 +942,7 @@ void RouteGrid::removeWrongWayWireSegment(const WrongWaySegment& wws, int netIdx
     }
 }
 
-void RouteGrid::printAllUsageAndVio() const {
+double RouteGrid::printAllUsageAndVio() const {
     const int width = 10;
     auto wlVia = printAllUsage();
     auto shortSpace = printAllVio();
@@ -956,6 +967,22 @@ void RouteGrid::printAllUsageAndVio() const {
               << std::endl;
     }
     log() << "total score = " << totalScore << std::endl;
+    return totalScore;
+}
+
+double RouteGrid::getScore() {
+    auto wlVia = printAllUsage();
+    auto shortSpace = printAllVio();
+    vector<std::string> items = {"wirelength", "# vias", "short", "space"};
+    vector<double> metrics = {wlVia.first, wlVia.second, shortSpace.first, shortSpace.second};
+    vector<double> weights = {
+            setting.weightWirelength, setting.weightViaNum, setting.weightShortArea, setting.weightSpaceVioNum};
+    double totalScore = 0;
+    for (int i = 0; i < items.size(); ++i) {
+        totalScore += metrics[i] * weights[i];
+        _vio_usage.at(i) = metrics.at(i);
+    }
+    return totalScore;
 }
 
 void RouteGrid::getAllWireUsage(const vector<int>& buckets,
@@ -974,6 +1001,31 @@ void RouteGrid::getAllWireUsage(const vector<int>& buckets,
                 while (buckets[bucketIdx] > usage) --bucketIdx;
                 wireUsageGrid[bucketIdx] += numGrids;
                 wireUsageLength[bucketIdx] += dist;
+            }
+        }
+    }
+}
+
+void RouteGrid::getNetWireVioUsage(std::unordered_map<int, int>& via_usage,
+                                   std::unordered_map<int, float>& wire_usage_length,
+                                   std::unordered_map<int, std::set<int>>& layer_usage) {
+    for (int layer_idx = 0; layer_idx < getLayerNum(); ++layer_idx) {
+        for (const auto& track : routedWireMap[layer_idx]) {
+            for (const auto& usage : track) {
+                const auto& intval = usage.first;
+                for (int net_idx : usage.second) {
+                    DBU dist = layers.at(layer_idx).getCrossPointRangeDist({first(intval), last(intval)});
+                    wire_usage_length[net_idx] = dist / float(layers[1].pitch);
+                    layer_usage[net_idx].insert(layer_idx);
+                }
+            }
+        }
+    }
+
+    for (unsigned layerIdx = 0; (layerIdx + 1) < getLayerNum(); ++layerIdx) {
+        for (const auto& track : routedViaMap[layerIdx]) {
+            for ( const auto& usage: track) {
+                ++via_usage[usage.second];
             }
         }
     }
@@ -1311,4 +1363,9 @@ void RouteGrid::statHistCost() const {
     }
 }
 
-}  // namespace db
+std::array<double, 4> RouteGrid::getAllVio() const {
+     return std::array<double, 4>(_vio_usage);
+}
+
+}   // namespace db
+

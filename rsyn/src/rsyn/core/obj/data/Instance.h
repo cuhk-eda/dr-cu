@@ -23,25 +23,25 @@ struct InstanceTagData {
 // -----------------------------------------------------------------------------
 
 struct InstanceData : ObjectData {
-	InstanceType type;
+	InstanceType type{UNKNOWN_INSTANCE_TYPE};
 		
 	std::vector<Pin> pins;
 	std::vector<Arc> arcs;
 	
 	// Design (Cached)
 	// @todo Remove.
-	Design design;
+	Design design{nullptr};
 	
 	// The module where this instance is instantiated. If only null for the top
 	// module.
-	Module parent;
+	Module parent{nullptr};
 	
 	// Local index inside it's parent module.
-	Index mid;
+	Index mid{std::numeric_limits<Index>::max()};
 
 	// Extra data for different types of instances.
 	union {
-		void * extra;
+		void * extra{nullptr};
 		
 		ModuleData * moduleData;
 		PinData * outerPin;
@@ -52,21 +52,9 @@ struct InstanceData : ObjectData {
 	InstanceTagData tag;
 
 	// Physical information.
-	Bounds clsBounds;
-	PhysicalOrientation clsOrientation;
-	DBUxy clsPortPos; // only for port to define position. (@todo remove, use bounds instead).
-
-	// Constructor
-	InstanceData() : 
-		design(nullptr),
-		type(UNKNOWN_INSTANCE_TYPE),
-		parent(nullptr),
-		extra(nullptr),
-		mid(-1),
-		clsBounds(0, 0, 0, 0),
-		clsOrientation(ORIENTATION_N), // @todo set to R0 by default
-		clsPortPos(0, 0) {
-	} // end constructor
+	Bounds clsBounds{0, 0, 0, 0};
+	PhysicalOrientation clsOrientation{ORIENTATION_N}; // @todo set to R0 by default
+	DBUxy clsPortPos{0, 0}; // only for port to define position. (@todo remove, use bounds instead).
 }; // end struct
 
 } // end namespace

@@ -497,13 +497,19 @@ void PostMazeRoute::getExtendWireRects(const std::vector<std::shared_ptr<db::Gri
             for (bool moveLeft = false, leftStop = false, rightStop = false;;) {
                 if (begin < low || crossPointVioCost[begin - low] > 0) {
                     leftStop = true;
-                    begin++;
+                    if (begin < leftCP) {
+                        ++begin;
+                    }
                 }
                 if (end > high || crossPointVioCost[end - low] > 0) {
                     rightStop = true;
-                    end--;
+                    if (end > rightCP) {
+                        --end;
+                    }
                 }
-                if ((leftStop && rightStop) || layer.getCrossPointRangeDist({begin, end}) >= minLen) break;
+                if ((leftStop && rightStop) || layer.getCrossPointRangeDist({begin, end}) >= minLen) {
+                    break;
+                }
 
                 moveLeft = (!moveLeft || rightStop) && !leftStop;
 

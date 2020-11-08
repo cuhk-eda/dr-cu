@@ -22,8 +22,8 @@ namespace Rsyn {
 class PhysicalDesignData : public PhysicalObject {
 	friend class PhysicalDesign;
 public:
-	Rsyn::Design clsDesign;
-	Rsyn::Module clsModule;
+	Rsyn::Design clsDesign{nullptr};
+	Rsyn::Module clsModule{nullptr};
 	Rsyn::LayerViaManagerData clsLayerViaManager;
 
 	std::list<std::function<void(Rsyn::Instance cell) >> callbackAddCreatePhysicalCell;
@@ -75,7 +75,7 @@ public:
 	bool clsEnableMergeRectangles : 1;
 	bool clsEnableNetPinBoundaries : 1;
 
-	Rsyn::Net clsClkNet;
+	Rsyn::Net clsClkNet{nullptr};
 	
 	// Physical design mode 
 	PhysicalDesignMode clsMode = PhysicalDesignMode::ALL;
@@ -86,8 +86,7 @@ public:
 
 	std::array<std::list<PhysicalDesignObserver *>, NUM_PHYSICAL_EVENTS> clsPhysicalObservers;
 
-	PhysicalDesignData() : clsClkNet(nullptr), clsDesign(nullptr), clsModule(nullptr) {
-
+	PhysicalDesignData() {
 		clsLoadDesign = false;
 		clsEnablePhysicalPins = false;
 		clsEnableMergeRectangles = false;
@@ -96,7 +95,7 @@ public:
 			clsDBUs[index] = 0;
 		} // end for 
 		for (int index = 0; index < NUM_PHYSICAL_TYPES; index++) {
-			clsTotalAreas[index] = 0.0;
+			clsTotalAreas[index] = 0;
 			clsNumElements[index] = 0;
 		} // end for  
 		for (int index = 0; index < NUM_PHY_LAYER; index++) {

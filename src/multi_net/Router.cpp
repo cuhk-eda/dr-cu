@@ -85,15 +85,18 @@ void Router::run() {
 
 vector<int> Router::getNetsToRoute() {
     vector<int> netsToRoute;
+    _netsCost.clear();
     if (iter == 0) {
         for (int i = 0; i < database.nets.size(); i++) {
             // if (database.nets[i].getName() == "net8984") netsToRoute.push_back(i);
             netsToRoute.push_back(i);
+            _netsCost.push_back(0);
         }
     } else {
         for (auto& net : database.nets) {
             if (UpdateDB::checkViolation(net)) {
                 netsToRoute.push_back(net.idx);
+                _netsCost.push_back(UpdateDB::getNetVioCost(net));
             }
         }
     }

@@ -22,6 +22,8 @@ public:
 
     void init();
     void clear() { RouteGrid::clear(); }
+    void reset() { RouteGrid::reset(); }
+    void stash() { RouteGrid::stash(); }
 
     void writeDEFWireSegment(Net& dbNet, const utils::PointT<DBU>& u, const utils::PointT<DBU>& v, int layerIdx);
     void writeDEFVia(Net& dbNet, const utils::PointT<DBU>& point, const ViaType& viaType, int layerIdx);

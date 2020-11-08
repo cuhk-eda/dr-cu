@@ -8,7 +8,8 @@ public:
     void run();
 
 private:
-    int iter;
+    int iter = 0;
+    vector<float> _netsCost;
     vector<db::RouteStatus> allNetStatus;
 
     vector<int> getNetsToRoute();
