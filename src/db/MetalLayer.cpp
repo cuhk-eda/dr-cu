@@ -69,11 +69,11 @@ MetalLayer::MetalLayer(Rsyn::PhysicalLayer rsynLayer,
         const int numSpace = layer->numSpacing();
         spaceRules.reserve(numSpace);
         for (int iSpace = 0; iSpace < numSpace; ++iSpace) {
-            const DBU space{std::lround(layer->spacing(iSpace) * libDBU)};
-            const DBU eolWidth{std::lround(layer->spacingEolWidth(iSpace) * libDBU)};
-            const DBU eolWithin{std::lround(layer->spacingEolWithin(iSpace) * libDBU)};
-            const DBU parSpace{std::lround(layer->spacingParSpace(iSpace) * libDBU)};
-            const DBU parWithin{std::lround(layer->spacingParWithin(iSpace) * libDBU)};
+            const DBU space{std::llround(layer->spacing(iSpace) * libDBU)};
+            const DBU eolWidth{std::llround(layer->spacingEolWidth(iSpace) * libDBU)};
+            const DBU eolWithin{std::llround(layer->spacingEolWithin(iSpace) * libDBU)};
+            const DBU parSpace{std::llround(layer->spacingParSpace(iSpace) * libDBU)};
+            const DBU parWithin{std::llround(layer->spacingParWithin(iSpace) * libDBU)};
             if (layer->hasSpacingParellelEdge(iSpace)) {
                 spaceRules.emplace_back(space, eolWidth, eolWithin, parSpace, parWithin);
                 maxEolSpace = std::max(maxEolSpace, space);
@@ -119,14 +119,14 @@ MetalLayer::MetalLayer(Rsyn::PhysicalLayer rsynLayer,
                 if (sBuf == "EXCEPTEOL") {
                     cornerExceptEol = true;
                     iss >> fBuf1;
-                    cornerEolWidth = std::lround(fBuf1 * libDBU);
+                    cornerEolWidth = std::llround(fBuf1 * libDBU);
                 } else if (sBuf == "WIDTH") {
                     iss >> fBuf1 >> sBuf >> fBuf2;
                     if (fBuf1) {
-                        cornerWidth.push_back(std::lround(fBuf1 * libDBU));
-                        cornerWidthSpace.push_back(std::lround(fBuf2 * libDBU));
+                        cornerWidth.push_back(std::llround(fBuf1 * libDBU));
+                        cornerWidthSpace.push_back(std::llround(fBuf2 * libDBU));
                     } else {
-                        cornerWidthSpace[0] = std::lround(fBuf2 * libDBU);
+                        cornerWidthSpace[0] = std::llround(fBuf2 * libDBU);
                     }
                 } else {
                     log() << "Warning in " << __func__ << ": For " << name
@@ -164,23 +164,23 @@ MetalLayer::MetalLayer(Rsyn::PhysicalLayer rsynLayer,
                 }
             }
             if (hasPar) {
-                spaceRules.emplace_back(std::lround(space * libDBU),
-                                        std::lround(eolWidth),
-                                        std::lround(eolWithin),
-                                        std::lround(parSpace),
-                                        std::lround(parWithin));
-                maxEolSpace = std::max(maxEolSpace, std::lround(space * libDBU));
-                maxEolWidth = std::max(maxEolWidth, std::lround(eolWidth * libDBU));
-                maxEolWithin = std::max(maxEolWithin, std::lround(eolWithin * libDBU));
+                spaceRules.emplace_back(std::llround(space * libDBU),
+                                        std::llround(eolWidth),
+                                        std::llround(eolWithin),
+                                        std::llround(parSpace),
+                                        std::llround(parWithin));
+                maxEolSpace = std::max<DBU>(maxEolSpace, std::llround(space * libDBU));
+                maxEolWidth = std::max<DBU>(maxEolWidth, std::llround(eolWidth * libDBU));
+                maxEolWithin = std::max<DBU>(maxEolWithin, std::llround(eolWithin * libDBU));
             } else if (hasEol) {
-                spaceRules.emplace_back(std::lround(space * libDBU), std::lround(eolWidth), std::lround(eolWithin));
-                maxEolSpace = std::max(maxEolSpace, std::lround(space * libDBU));
-                maxEolWidth = std::max(maxEolWidth, std::lround(eolWidth * libDBU));
-                maxEolWithin = std::max(maxEolWithin, std::lround(eolWithin * libDBU));
+                spaceRules.emplace_back(std::llround(space * libDBU), std::llround(eolWidth), std::llround(eolWithin));
+                maxEolSpace = std::max<DBU>(maxEolSpace, std::llround(space * libDBU));
+                maxEolWidth = std::max<DBU>(maxEolWidth, std::llround(eolWidth * libDBU));
+                maxEolWithin = std::max<DBU>(maxEolWithin, std::llround(eolWithin * libDBU));
             } else if (!numSpaceTable) {
-                parallelWidthSpace[0][0] = std::lround(space * libDBU);
+                parallelWidthSpace[0][0] = std::llround(space * libDBU);
                 defaultSpace = getParaRunSpace(width);
-            } else if (std::lround(space * libDBU) != defaultSpace) {
+            } else if (std::llround(space * libDBU) != defaultSpace) {
                 log() << "Warning in " << __func__ << ": For " << name
                       << ", mismatched defaultSpace & spacingTable...\n";
             }

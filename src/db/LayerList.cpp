@@ -442,18 +442,18 @@ void LayerList::initViaWire(const int layerIdx,
         for (unsigned j = 0; j != xSize * 2 + 1; ++j) {
             DBU xDist = 0;
             if (j < xSize) {
-                xDist = max(0L, int(xSize - j) * layer.pitch - halfWidth + viaMetal[layer.direction].low);
+                xDist = max<DBU>(0, static_cast<int>(xSize - j) * layer.pitch - halfWidth + viaMetal[layer.direction].low);
             } else if (j > xSize) {
-                xDist = max(0L, int(j - xSize) * layer.pitch - halfWidth - viaMetal[layer.direction].high);
+                xDist = max<DBU>(0, static_cast<int>(j - xSize) * layer.pitch - halfWidth - viaMetal[layer.direction].high);
             }
             for (unsigned k = max(0, (int)ySize - (int)i); k < min(ySize * 2 + 1, layer.numCrossPoints() + ySize - i);
                  ++k) {
                 const CrossPoint& tmpCP = layer.crossPoints[i + k - ySize];
                 DBU yDist = 0;
                 if (k < ySize) {
-                    yDist = max(0L, cp.location - tmpCP.location - halfWidth + viaMetal[1 - layer.direction].low);
+                    yDist = max<DBU>(0, cp.location - tmpCP.location - halfWidth + viaMetal[1 - layer.direction].low);
                 } else if (k > ySize) {
-                    yDist = max(0L, tmpCP.location - cp.location - halfWidth - viaMetal[1 - layer.direction].high);
+                    yDist = max<DBU>(0, tmpCP.location - cp.location - halfWidth - viaMetal[1 - layer.direction].high);
                 }
                 if (pow(xDist, 2) + pow(yDist, 2) < pow(pSpace, 2) ||
                     layer.isEolViolation(xDist, viaMetalHeight, yDist) ||
