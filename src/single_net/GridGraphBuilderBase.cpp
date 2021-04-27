@@ -41,7 +41,7 @@ void GridGraphBuilderBase::updatePinVertex(int pinIdx, int vertexIdx, bool fakeP
             const db::GridPoint& point = vertexToGridPoint[vertexIdx];
             const double oriCost = getPinPointCost(localNet.dbNet.pinAccessBoxes[oriPinIdx], point);
             const double newCost = getPinPointCost(localNet.dbNet.pinAccessBoxes[pinIdx], point);
-            if (oriCost < newCost) {
+            if (oriCost > newCost) {
                 graph.vertexToPin[vertexIdx] = pinIdx;
                 auto &oriPinToVertex = graph.pinToVertex[oriPinIdx];
                 auto oriIt = find(oriPinToVertex.begin(), oriPinToVertex.end(), vertexIdx);
