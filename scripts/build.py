@@ -46,7 +46,7 @@ else:
 
 run(f'cmake src -B{args.build_dir} {mode_cmake_options[args.mode]} {args.cmake_options}')
 run(f'mkdir -p {args.run_dir}')
-run(f'cp -u -R {run_files} {args.run_dir}')
+run(f'cp -R {run_files} {args.run_dir}')
 
 # make
 if build_targets:
@@ -56,7 +56,7 @@ else:
     run(f'cmake --build {args.build_dir} -- {args.make_options}')
 cp_targets = all_targets if not build_targets else build_targets
 for target in cp_targets:
-    run('cp -u {}/{} {}'.format(args.build_dir, target, args.run_dir))
+    run('cp {}/{} {}'.format(args.build_dir, target, args.run_dir))
 
 # unit test
 if args.unittest:

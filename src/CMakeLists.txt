@@ -62,7 +62,7 @@ SET_SOURCE_FILES_PROPERTIES(${LEF_SRC_DIR}/lef.tab.c ${DEF_SRC_DIR}/def.tab.c PR
 
 set(SRC_FILES ${SRC_FILES_RSYN} ${SRC_FILES_ISPD18} ${LEF_SRC_DIR}/lef.tab.c ${DEF_SRC_DIR}/def.tab.c)
 
-set(CMAKE_CXX_VISIBILITY_PRESET hidden)
+# set(CMAKE_CXX_VISIBILITY_PRESET hidden)
 
 ###########
 # Targets #
