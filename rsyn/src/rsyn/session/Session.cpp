@@ -17,8 +17,10 @@
 #include <iosfwd>
 #include <mutex>
 #include <boost/filesystem.hpp>
+#include <clocale>
 
 #include "Session.h"
+
 
 #include "rsyn/util/Json.h"
 #include "rsyn/phy/PhysicalService.h"

@@ -23,7 +23,7 @@
 #include <tuple>
 #include <unordered_map>
 
-#include "lef5.8/lefiMacro.hpp"
+#include "lefiMacro.hpp"
 
 namespace Rsyn {
 

@@ -1,0 +1,18 @@
+WARNING (DEFPARS-7011): The NAMESCASESENSITIVE statement is obsolete in version 5.6 and later.
+The DEF parser will ignore this statement. See file complete.5.8.def at line 5.
+
+WARNING (DEFPARS-7019): The PATTERNNAME statement is obsolete in version 5.6 and later.
+The DEF parser will ignore this statement. See file complete.5.8.def at line 150.
+
+WARNING (DEFPARS-7019): The PATTERNNAME statement is obsolete in version 5.6 and later.
+The DEF parser will ignore this statement. See file complete.5.8.def at line 159.
+
+WARNING (DEFPARS-7019): The PATTERNNAME statement is obsolete in version 5.6 and later.
+The DEF parser will ignore this statement. See file complete.5.8.def at line 167.
+
+WARNING (DEFPARS-7021): The FOREIGN statement is obsolete in version 5.6 and later.
+The DEF parser will ignore this statement. See file complete.5.8.def at line 324.
+
+WARNING (DEFPARS-7027): The GROUP REGION pt pt statement is obsolete in version 5.5 and later.
+The DEF parser will ignore this statement. See file complete.5.8.def at line 943.
+

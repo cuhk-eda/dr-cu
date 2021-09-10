@@ -3,7 +3,8 @@
 #########
 
 # Specify the minimum version for CMake
-cmake_minimum_required(VERSION 3.1.0)
+# 3.5+ needed for CMAKE_CXX_VISIBILITY_PRESET
+cmake_minimum_required(VERSION 3.5.0)
 
 # Message
 message(STATUS "ISPD19 DR CUHK")
@@ -24,6 +25,7 @@ set(CMAKE_CXX_STANDARD 14)
 set(PATH_RSYN ${CMAKE_CURRENT_SOURCE_DIR}/../rsyn)
 set(PATH_ISPD18 ${CMAKE_CURRENT_SOURCE_DIR})
 
+
 ###################
 # Warnings/Errors #
 ###################
@@ -39,33 +41,35 @@ find_package(Boost COMPONENTS filesystem program_options REQUIRED)
 ###############
 # Source Code #
 ###############
+
+find_package(BISON REQUIRED)
+set(LEF_SRC_DIR ${PATH_RSYN}/lef/lef)
+set(DEF_SRC_DIR ${PATH_RSYN}/def/def)
+BISON_TARGET(LEF ${LEF_SRC_DIR}/lef.y ${LEF_SRC_DIR}/lef.tab.c COMPILE_FLAGS "-v -p lefyy -d")
+BISON_TARGET(DEF ${DEF_SRC_DIR}/def.y ${DEF_SRC_DIR}/def.tab.c COMPILE_FLAGS "-v -p defyy -d")
+
 file(GLOB_RECURSE SRC_FILES_RSYN
     ${PATH_RSYN}/src/*.cpp
     ${PATH_RSYN}/src/*.cc
-    ${PATH_RSYN}/src/*.c)
+    ${PATH_RSYN}/src/*.c
+    ${LEF_SRC_DIR}/*.cpp
+    ${DEF_SRC_DIR}/*.cpp
+    )
 
 file(GLOB_RECURSE SRC_FILES_ISPD18 ${PATH_ISPD18}/*.cpp)
 
-set(SRC_FILES ${SRC_FILES_RSYN} ${SRC_FILES_ISPD18})
+SET_SOURCE_FILES_PROPERTIES(${LEF_SRC_DIR}/lef.tab.c ${DEF_SRC_DIR}/def.tab.c PROPERTIES LANGUAGE CXX )
 
-#################
-# Library Paths #
-#################
-# Need to come before target is created.
+set(SRC_FILES ${SRC_FILES_RSYN} ${SRC_FILES_ISPD18} ${LEF_SRC_DIR}/lef.tab.c ${DEF_SRC_DIR}/def.tab.c)
 
-if(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
-link_directories(${PATH_RSYN}/lib/linux)
-endif()
-
-if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
-link_directories(${PATH_RSYN}/lib/macosx)
-endif()
+set(CMAKE_CXX_VISIBILITY_PRESET hidden)
 
 ###########
 # Targets #
 ###########
 
 add_executable(ispd19dr ${SRC_FILES})
+
 
 #######################
 # Include Directories #
@@ -74,21 +78,14 @@ add_executable(ispd19dr ${SRC_FILES})
 include_directories(${PATH_RSYN}/src)
 include_directories(${PATH_RSYN}/src/rsyn/export)
 include_directories(${PATH_RSYN}/include)
+include_directories(${PATH_RSYN}/lef/include)
+include_directories(${PATH_RSYN}/def/include)
 include_directories(${PATH_ISPD18})
 
 #################
 # Linker Flags  #
 #################
 
-# TODO: set static under release mode only
-set_target_properties(ispd19dr PROPERTIES LINK_FLAGS "-static -Wl,--whole-archive -rdynamic -lpthread -Wl,--no-whole-archive")
-
-# Threads
-# target_link_libraries(ispd19dr ${CMAKE_THREAD_LIBS_INIT})
-
-# LEF/DEF
-target_link_libraries(ispd19dr lef)
-target_link_libraries(ispd19dr def)
 
 # Boost
 target_include_directories(ispd19dr PUBLIC ${Boost_INCLUDE_DIR})

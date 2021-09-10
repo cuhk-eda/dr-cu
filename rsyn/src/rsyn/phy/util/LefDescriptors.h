@@ -36,7 +36,7 @@
 #include "rsyn/util/DoubleRectangle.h"
 #include "rsyn/util/double2.h"
 
-#include "lef5.8/lefrReader.hpp"
+#include "lefrReader.hpp"
 
 // NOTE: Guilherme Flach - 2016/11/04
 // I did not change here from double to dbu because the data is load from
