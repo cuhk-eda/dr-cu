@@ -31,10 +31,10 @@
 #include "rsyn/util/double2.h"
 //LEF headers
 
-#include "lef5.8/lefrReader.hpp"
-#include "lef5.8/lefwWriter.hpp"
-#include "lef5.8/lefiDebug.hpp"
-#include "lef5.8/lefiUtil.hpp"
+#include "lefrReader.hpp"
+#include "lefwWriter.hpp"
+#include "lefiDebug.hpp"
+#include "lefiUtil.hpp"
 
 #define BOOST_POLYGON_NO_DEPS
 #include <boost/polygon/polygon.hpp>

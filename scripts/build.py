@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 import argparse, os
 
@@ -41,21 +41,22 @@ args = parser.parse_args()
 # targets
 if args.unittest:
     build_targets = ['unittest_salt']
-elif args.targets is None:
-    build_targets = ['']
 else:
     build_targets = args.targets
 
-run('cmake src -B{} {} {}'.format(args.build_dir, mode_cmake_options[args.mode], args.cmake_options))
-run('mkdir -p {}'.format(args.run_dir))
-run('cp -u -R {} {}'.format(run_files, args.run_dir))
+run(f'cmake src -B{args.build_dir} {mode_cmake_options[args.mode]} {args.cmake_options}')
+run(f'mkdir -p {args.run_dir}')
+run(f'cp -R {run_files} {args.run_dir}')
 
 # make
-for target in build_targets:
-    run('cmake --build {} --target {} -- {}'.format(args.build_dir, target, args.make_options))
-cp_targets = all_targets if build_targets == [''] else build_targets
+if build_targets:
+    for target in build_targets:
+        run(f'cmake --build {args.build_dir} --target {target} -- {args.make_options}')
+else:
+    run(f'cmake --build {args.build_dir} -- {args.make_options}')
+cp_targets = all_targets if not build_targets else build_targets
 for target in cp_targets:
-    run('cp -u {}/{} {}'.format(args.build_dir, target, args.run_dir))
+    run('cp {}/{} {}'.format(args.build_dir, target, args.run_dir))
 
 # unit test
 if args.unittest:
