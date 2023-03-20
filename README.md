@@ -1,6 +1,7 @@
-Dr. CU
-======================================
+# Dr.CU
+
 Dr. CU is a VLSI detailed routing tool developed by the research team supervised by Prof. Evangeline F.Y. Young in The Chinese University of Hong Kong (CUHK). Different from global routing, detailed routing takes care of many detailed design rules and is performed on a significantly larger routing grid graph. In advanced technology nodes, it becomes the most complicated and time-consuming stage in the VLSI physical design flow. To tackle the challenges, we design and implement several efficient and effective data structures and algorithms under a holistic framework:
+
 * A set of two-level sparse data structures
 * An optimal correct-by-construction path search
 * An efficient bulk synchronous parallel scheme
@@ -22,6 +23,16 @@ IEEE/ACM International Conference on Computer-Aided Design (ICCAD), Westminster,
 and [ISPD'19 benchmarks](http://www.ispd.cc/contests/19/#benchmarks).
 This version of code is consistent with the ICCAD paper.)
 
+## 0. Config
+
+Enter the following commands when **first time** using Dr.CU:
+
+```bash
+$ cd config
+$ chmod 700 config.sh
+$ ./config.sh
+```
+
 ## 1. How to Build
 
 **Step 1:** Download the source code. For example,
@@ -32,8 +43,10 @@ $ git clone https://github.com/cuhk-eda/dr-cu
 **Step 2:** Go to the project root and build by
 ```bash
 $ cd dr-cu
-$ scripts/build.py -o release
+$ scripts/build.py -o release -t ispd19dr
 ```
+
+**Note from @cptsai: It seems that it will fail when setting `-t ispd18dr`.**
 
 Note that this will generate two folders under the root, `build` and `run` (`build` contains intermediate files for build/compilation, while `run` contains binaries and auxiliary files).
 More details are in [`scripts/build.py`](scripts/build.py).
