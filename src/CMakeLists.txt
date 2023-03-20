@@ -34,7 +34,9 @@ set(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -Werror=return-type")
 # Check Dependencies #
 ######################
 set(Boost_USE_STATIC_LIBS ON)
-find_package(Boost COMPONENTS filesystem program_options REQUIRED)
+set(BOOST_INCLUDEDIR ../boost/include)
+set(BOOST_LIBRARYDIR ../boost/lib)
+find_package(Boost EXACT 1.67.0 COMPONENTS filesystem program_options REQUIRED)
 
 ###############
 # Source Code #
